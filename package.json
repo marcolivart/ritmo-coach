@@ -1,6 +1,6 @@
 {
   "name": "ritmo-coach",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,12 +9,16 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.49.4",
     "lucide-react": "0.468.0",
     "react": "18.3.1",
     "react-dom": "18.3.1"
   },
-"devDependencies": {
-  "@vitejs/plugin-react": "4.3.4",
-  "vite": "5.4.11"
-}
+  "devDependencies": {
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "4.3.4",
+    "typescript": "^5.7.2",
+    "vite": "5.4.11"
+  }
 }

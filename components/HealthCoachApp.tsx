@@ -17,6 +17,8 @@ import {
   Gauge,
   Heart,
   Home,
+  Cloud,
+  LogOut,
   Info,
   ListChecks,
   Minus,
@@ -38,6 +40,20 @@ import {
   X,
   Zap,
 } from "lucide-react";
+import type { FoodPreference, Profile, WeightLog } from "../src/types";
+import {
+  addFoodPreference as addFoodPreferenceRecord,
+  getFoodPreferences,
+  getGroceries,
+  getWeightLogs,
+  removeFoodPreference,
+  saveExerciseSet,
+  saveProfile,
+  saveWeightLog,
+  seedGroceries,
+  setGroceryChecked,
+} from "../src/lib/database";
+import { estimateDailyCalories, formatWeighingDay, mondayISO } from "../src/lib/nutrition";
 
 type Tab = "today" | "food" | "training" | "progress" | "profile";
 type FoodView = "week" | "shopping" | "preferences";
@@ -238,19 +254,90 @@ function calculateDailyTotals(day: DayPlan) {
   );
 }
 
-export default function HealthCoachApp() {
+type HealthCoachAppProps = {
+  userId?: string;
+  profile?: Profile | null;
+  demoMode?: boolean;
+  onProfileChange?: (profile: Profile) => void;
+  onLogout?: () => void | Promise<void>;
+};
+
+const demoProfile: Profile = {
+  id: "demo", name: "Marc", sex: "male", birth_date: "2002-01-01", height_cm: 179,
+  current_weight_kg: 93, target_weight_kg: 80, goal: "lose", weighing_day: 0,
+  activity_level: "moderate", exercise_types: ["Gimnasio", "Running"], training_days: 3,
+  meal_count: 4, onboarding_completed: true,
+};
+
+function scaleIngredient(value: string, factor: number) {
+  return value.replace(/^(\d+(?:[.,]\d+)?)\s*(g|ml)\b/i, (_match, raw, unit) => {
+    const amount = Number(String(raw).replace(",", "."));
+    const rounded = Math.max(5, Math.round((amount * factor) / 5) * 5);
+    return `${rounded} ${unit}`;
+  });
+}
+
+function personalizeWeek(profile: Profile): DayPlan[] {
+  const target = estimateDailyCalories(profile);
+  const monday = new Date(`${mondayISO()}T12:00:00`);
+  return week.map((day, dayIndex) => {
+    const baseTotal = calculateDailyTotals(day).calories;
+    const factor = Math.max(.72, Math.min(1.35, target / baseTotal));
+    const date = new Date(monday);
+    date.setDate(monday.getDate() + dayIndex);
+    return {
+      ...day,
+      date: date.getDate(),
+      meals: day.meals.map((meal) => ({
+        ...meal,
+        calories: Math.round(meal.calories * factor),
+        protein: Math.round(meal.protein * Math.min(1.18, Math.max(.88, factor))),
+        ingredients: meal.ingredients.map((ingredient) => scaleIngredient(ingredient, factor)),
+      })),
+    };
+  });
+}
+
+function personalizeGroceries(profile: Profile): GroceryItem[] {
+  const factor = Math.max(.72, Math.min(1.35, estimateDailyCalories(profile) / 2000));
+  return initialGroceries.map((item) => ({
+    ...item,
+    amount: item.amount.replace(/(\d+(?:[.,]\d+)?)\s*(kg|g|litros?)/i, (_match, raw, unit) => {
+      const value = Number(String(raw).replace(",", "."));
+      const scaled = unit.toLowerCase() === "g" ? Math.round((value * factor) / 10) * 10 : Math.round(value * factor * 10) / 10;
+      return `${String(scaled).replace(".", ",")} ${unit}`;
+    }),
+  }));
+}
+
+function isWeeklyWeightDue(logs: WeightLog[]): boolean {
+  if (!logs.length) return true;
+  const latest = new Date(`${logs[logs.length - 1].measured_at}T12:00:00`).getTime();
+  return Date.now() - latest >= 7 * 24 * 60 * 60 * 1000;
+}
+
+export default function HealthCoachApp({ userId, profile, demoMode = false, onProfileChange, onLogout }: HealthCoachAppProps) {
   const [tab, setTab] = useState<Tab>("today");
   const [foodView, setFoodView] = useState<FoodView>("week");
   const [trainingView, setTrainingView] = useState<TrainingView>("overview");
   const [selectedDay, setSelectedDay] = useState(0);
   const [weightModal, setWeightModal] = useState(false);
   const [mealModal, setMealModal] = useState<Meal | null>(null);
-  const [newWeight, setNewWeight] = useState("92.4");
-  const [currentWeight, setCurrentWeight] = useState(93.0);
-  const [blockedFoods, setBlockedFoods] = useState(["Brócoli", "Champiñones", "Queso azul"]);
-  const [favoriteFoods, setFavoriteFoods] = useState(["Pollo", "Arroz", "Patata", "Pasta"]);
+  const effectiveProfile = profile ?? demoProfile;
+  const [newWeight, setNewWeight] = useState(String(effectiveProfile.current_weight_kg));
+  const [currentWeight, setCurrentWeight] = useState(effectiveProfile.current_weight_kg);
+  const [blockedFoods, setBlockedFoods] = useState(demoMode ? ["Brócoli", "Champiñones", "Queso azul"] : []);
+  const [favoriteFoods, setFavoriteFoods] = useState(demoMode ? ["Pollo", "Arroz", "Patata", "Pasta"] : []);
+  const [allergies, setAllergies] = useState<string[]>([]);
+  const [preferenceRecords, setPreferenceRecords] = useState<FoodPreference[]>([]);
+  const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
   const [foodInput, setFoodInput] = useState("");
-  const [groceries, setGroceries] = useState(initialGroceries);
+  const [favoriteInput, setFavoriteInput] = useState("");
+  const [allergyInput, setAllergyInput] = useState("");
+  const [groceries, setGroceries] = useState(() => personalizeGroceries(effectiveProfile));
+  const [syncing, setSyncing] = useState(false);
+  const [profileModal, setProfileModal] = useState(false);
+  const [profileDraft, setProfileDraft] = useState<Profile>(effectiveProfile);
   const [toast, setToast] = useState("");
   const [activeExercise, setActiveExercise] = useState(0);
   const [setData, setSetData] = useState([
@@ -260,34 +347,49 @@ export default function HealthCoachApp() {
   ]);
 
   useEffect(() => {
+    setCurrentWeight(effectiveProfile.current_weight_kg);
+    setNewWeight(String(effectiveProfile.current_weight_kg));
+    setProfileDraft(effectiveProfile);
+  }, [effectiveProfile.current_weight_kg, effectiveProfile.id]);
+
+  useEffect(() => {
+    if (userId) {
+      setSyncing(true);
+      const weekStart = mondayISO();
+      Promise.all([getFoodPreferences(userId), getWeightLogs(userId), getGroceries(userId, weekStart)])
+        .then(async ([preferences, logs, remoteGroceries]) => {
+          setPreferenceRecords(preferences);
+          setBlockedFoods(preferences.filter((item) => item.restriction_type === "blocked").map((item) => item.food_name));
+          setFavoriteFoods(preferences.filter((item) => item.restriction_type === "favorite").map((item) => item.food_name));
+          setAllergies(preferences.filter((item) => item.restriction_type === "allergy").map((item) => item.food_name));
+          setWeightLogs(logs);
+          const items = remoteGroceries.length ? remoteGroceries : await seedGroceries(userId, weekStart, personalizeGroceries(effectiveProfile).map(({ category, name, amount, checked }) => ({ category, name, amount, checked })));
+          setGroceries(items.map((item) => ({ id: String(item.id), category: item.category, name: item.name, amount: item.amount, checked: item.checked })));
+          if (isWeeklyWeightDue(logs)) setWeightModal(true);
+        })
+        .catch((caught) => setToast(caught instanceof Error ? caught.message : "No se han podido sincronizar los datos"))
+        .finally(() => setSyncing(false));
+      return;
+    }
+
     try {
       const saved = localStorage.getItem("ritmo-prototype");
       if (!saved) return;
-      const data = JSON.parse(saved) as {
-        currentWeight?: number;
-        blockedFoods?: string[];
-        favoriteFoods?: string[];
-        groceries?: GroceryItem[];
-      };
+      const data = JSON.parse(saved) as { currentWeight?: number; blockedFoods?: string[]; favoriteFoods?: string[]; allergies?: string[]; groceries?: GroceryItem[] };
       if (data.currentWeight) setCurrentWeight(data.currentWeight);
       if (data.blockedFoods) setBlockedFoods(data.blockedFoods);
       if (data.favoriteFoods) setFavoriteFoods(data.favoriteFoods);
+      if (data.allergies) setAllergies(data.allergies);
       if (data.groceries) setGroceries(data.groceries);
-    } catch {
-      // El prototipo sigue funcionando aunque el almacenamiento esté corrupto.
-    }
-  }, []);
+    } catch { /* El modo demo sigue funcionando. */ }
+  }, [userId]);
 
   useEffect(() => {
+    if (userId) return;
     try {
-      localStorage.setItem(
-        "ritmo-prototype",
-        JSON.stringify({ currentWeight, blockedFoods, favoriteFoods, groceries }),
-      );
-    } catch {
-      // Algunos entornos de previsualización bloquean localStorage.
-    }
-  }, [currentWeight, blockedFoods, favoriteFoods, groceries]);
+      localStorage.setItem("ritmo-prototype", JSON.stringify({ currentWeight, blockedFoods, favoriteFoods, allergies, groceries }));
+    } catch { /* Algunos entornos bloquean localStorage. */ }
+  }, [userId, currentWeight, blockedFoods, favoriteFoods, allergies, groceries]);
 
   useEffect(() => {
     if (!toast) return;
@@ -295,43 +397,87 @@ export default function HealthCoachApp() {
     return () => window.clearTimeout(timeout);
   }, [toast]);
 
-  const selectedPlan = week[selectedDay];
+  const currentProfile = useMemo(() => ({ ...effectiveProfile, current_weight_kg: currentWeight }), [effectiveProfile, currentWeight]);
+  const personalizedWeek = useMemo(() => personalizeWeek(currentProfile), [currentProfile]);
+  const selectedPlan = personalizedWeek[selectedDay];
   const totals = useMemo(() => calculateDailyTotals(selectedPlan), [selectedPlan]);
+  const estimatedCalories = estimateDailyCalories(currentProfile);
+  const weightDue = isWeeklyWeightDue(weightLogs);
   const checkedGroceries = groceries.filter((item) => item.checked).length;
 
-  const saveWeight = () => {
+  const saveWeight = async () => {
     const parsed = Number(newWeight.replace(",", "."));
-    if (!Number.isFinite(parsed) || parsed < 35 || parsed > 300) {
-      setToast("Introduce un peso válido");
-      return;
-    }
-    setCurrentWeight(parsed);
-    setWeightModal(false);
-    setToast("Peso guardado. Plan semanal actualizado");
+    if (!Number.isFinite(parsed) || parsed < 35 || parsed > 300) { setToast("Introduce un peso válido"); return; }
+    try {
+      setSyncing(true);
+      if (userId) {
+        const today = new Date().toISOString().slice(0, 10);
+        const savedLog = await saveWeightLog(userId, parsed, today);
+        const savedProfile = await saveProfile({ ...currentProfile, current_weight_kg: parsed });
+        setWeightLogs((logs) => [...logs.filter((item) => item.measured_at !== today), savedLog].sort((a, b) => a.measured_at.localeCompare(b.measured_at)));
+        onProfileChange?.(savedProfile);
+      }
+      setCurrentWeight(parsed); setWeightModal(false); setToast("Peso guardado. Plan semanal actualizado");
+    } catch (caught) { setToast(caught instanceof Error ? caught.message : "No se ha podido guardar el peso"); }
+    finally { setSyncing(false); }
   };
 
-  const addBlockedFood = () => {
-    const clean = foodInput.trim();
+  const addPreference = async (raw: string, type: "blocked" | "favorite" | "allergy") => {
+    const clean = raw.trim();
     if (!clean) return;
-    if (blockedFoods.some((food) => food.toLowerCase() === clean.toLowerCase())) {
-      setToast("Ese alimento ya está bloqueado");
-      return;
-    }
-    setBlockedFoods((foods) => [...foods, clean]);
-    setFoodInput("");
-    setToast(`${clean} no aparecerá en tu dieta`);
+    const target = type === "blocked" ? blockedFoods : type === "favorite" ? favoriteFoods : allergies;
+    if (target.some((food) => food.toLowerCase() === clean.toLowerCase())) { setToast("Ese alimento ya está registrado"); return; }
+    try {
+      setSyncing(true);
+      let record: FoodPreference | null = null;
+      if (userId) record = await addFoodPreferenceRecord(userId, clean, type);
+      if (record) setPreferenceRecords((items) => [...items.filter((item) => item.id !== record!.id), record!]);
+      if (type === "blocked") { setBlockedFoods((foods) => [...foods, clean]); setFoodInput(""); setToast(`${clean} no aparecerá en tu dieta`); }
+      if (type === "favorite") { setFavoriteFoods((foods) => [...foods, clean]); setFavoriteInput(""); setToast(`${clean} añadido a favoritos`); }
+      if (type === "allergy") { setAllergies((foods) => [...foods, clean]); setAllergyInput(""); setToast(`${clean} marcado como restricción crítica`); }
+    } catch (caught) { setToast(caught instanceof Error ? caught.message : "No se ha podido guardar"); }
+    finally { setSyncing(false); }
   };
 
-  const toggleGrocery = (id: string) => {
-    setGroceries((items) => items.map((item) => (item.id === id ? { ...item, checked: !item.checked } : item)));
+  const addBlockedFood = () => void addPreference(foodInput, "blocked");
+
+  const deletePreference = async (food: string, type: "blocked" | "favorite" | "allergy") => {
+    try {
+      setSyncing(true);
+      const record = preferenceRecords.find((item) => item.food_name === food && item.restriction_type === type);
+      if (userId && record) await removeFoodPreference(record.id);
+      setPreferenceRecords((items) => items.filter((item) => item.id !== record?.id));
+      if (type === "blocked") setBlockedFoods((foods) => foods.filter((item) => item !== food));
+      if (type === "favorite") setFavoriteFoods((foods) => foods.filter((item) => item !== food));
+      if (type === "allergy") setAllergies((foods) => foods.filter((item) => item !== food));
+    } catch (caught) { setToast(caught instanceof Error ? caught.message : "No se ha podido eliminar"); }
+    finally { setSyncing(false); }
+  };
+
+  const toggleGrocery = async (id: string) => {
+    const item = groceries.find((value) => value.id === id);
+    if (!item) return;
+    const checked = !item.checked;
+    setGroceries((items) => items.map((value) => (value.id === id ? { ...value, checked } : value)));
+    if (userId && Number.isFinite(Number(id))) {
+      try { await setGroceryChecked(Number(id), checked); }
+      catch (caught) { setGroceries((items) => items.map((value) => (value.id === id ? { ...value, checked: !checked } : value))); setToast(caught instanceof Error ? caught.message : "No se ha podido sincronizar la compra"); }
+    }
   };
 
   const updateSet = (index: number, field: "kg" | "reps", value: string) => {
     setSetData((sets) => sets.map((set, i) => (i === index ? { ...set, [field]: value } : set)));
   };
 
-  const toggleSetDone = (index: number) => {
-    setSetData((sets) => sets.map((set, i) => (i === index ? { ...set, done: !set.done } : set)));
+  const toggleSetDone = async (index: number) => {
+    const nextDone = !setData[index].done;
+    setSetData((sets) => sets.map((set, i) => (i === index ? { ...set, done: nextDone } : set)));
+    if (userId && nextDone) {
+      try {
+        await saveExerciseSet({ userId, workoutName: "Torso A", exerciseName: exercises[activeExercise].name, setNumber: index + 1, weightKg: Number(setData[index].kg) || null, repetitions: Number(setData[index].reps) || null });
+        setToast(`Serie ${index + 1} sincronizada`);
+      } catch (caught) { setToast(caught instanceof Error ? caught.message : "No se ha podido guardar la serie"); }
+    }
   };
 
   const startExercise = (index: number) => {
@@ -344,8 +490,20 @@ export default function HealthCoachApp() {
     ]);
   };
 
+  const saveProfileEditor = async () => {
+    try {
+      setSyncing(true);
+      const saved = userId ? await saveProfile({ ...profileDraft, current_weight_kg: currentWeight, onboarding_completed: true }) : profileDraft;
+      onProfileChange?.(saved);
+      setProfileModal(false);
+      setToast("Perfil actualizado");
+    } catch (caught) { setToast(caught instanceof Error ? caught.message : "No se ha podido actualizar el perfil"); }
+    finally { setSyncing(false); }
+  };
+
   const exportPDF = () => {
-    const daysHtml = week.map((day) => {
+    if (userId && weightDue) { setWeightModal(true); setToast("Registra el pesaje semanal antes de generar el nuevo PDF"); return; }
+    const daysHtml = personalizedWeek.map((day) => {
       const meals = day.meals.map((meal) => `
         <section class="meal">
           <h3>${meal.type}: ${meal.name}</h3>
@@ -387,7 +545,7 @@ export default function HealthCoachApp() {
         .print-note { color: #68736b; font-size: 10px; margin-top: 20px; }
       </style></head><body>
       <header><h1>RITMO · PLAN SEMANAL</h1><p>Tu alimentación y entrenamiento cambian contigo.</p></header>
-      <div class="summary"><strong>Semana:</strong> 14–20 de julio de 2026<br><strong>Peso actual:</strong> ${currentWeight.toFixed(1)} kg · <strong>Objetivo:</strong> 80 kg<br><strong>Plan:</strong> pérdida de peso progresiva · 1.950–2.050 kcal<br><strong>Pesaje oficial:</strong> domingo por la mañana</div>
+      <div class="summary"><strong>Semana:</strong> ${personalizedWeek[0].date}–${personalizedWeek[6].date}<br><strong>Peso actual:</strong> ${currentWeight.toFixed(1)} kg · <strong>Objetivo:</strong> ${currentProfile.target_weight_kg} kg<br><strong>Plan estimado:</strong> ${estimatedCalories} kcal/día<br><strong>Pesaje oficial:</strong> ${formatWeighingDay(currentProfile.weighing_day)} por la mañana</div>
       ${daysHtml}
       <div class="page-break"></div>
       <h1>Lista de la compra</h1>${groceryHtml}
@@ -406,10 +564,10 @@ export default function HealthCoachApp() {
           <div className="brand-mark"><Zap size={22} strokeWidth={2.8} /></div>
           <div className="brand-name">ritmo</div>
         </div>
-        <div className="avatar">M</div>
+        <div className="topbar-actions">{syncing && <span className="sync-chip"><Cloud size={13} /> Guardando</span>}<div className="avatar">{currentProfile.name.slice(0, 1).toUpperCase()}</div></div>
       </div>
 
-      <h1 className="hero-title">Buenos días, Marc.<br />Hoy toca avanzar.</h1>
+      <h1 className="hero-title">Buenos días, {currentProfile.name}.<br />Hoy toca avanzar.</h1>
       <p className="hero-subtitle">Tu plan está adaptado a tu objetivo, tu último peso y el entrenamiento de esta semana.</p>
 
       <button className="card card-dark action-card" style={{ width: "100%", minHeight: 188 }} onClick={() => setWeightModal(true)}>
@@ -421,7 +579,7 @@ export default function HealthCoachApp() {
           <div className="weight-number">{currentWeight.toFixed(1)} <small>kg</small></div>
           <div className="weight-delta">−0,6 kg esta semana · vas al ritmo correcto</div>
           <div className="progress-track"><div className="progress-fill" style={{ width: "31%" }} /></div>
-          <div className="progress-labels"><span>Inicio 97 kg</span><span>Objetivo 80 kg</span></div>
+          <div className="progress-labels"><span>Inicio {weightLogs[0]?.weight_kg?.toFixed(1) ?? currentProfile.current_weight_kg} kg</span><span>Objetivo {currentProfile.target_weight_kg} kg</span></div>
         </div>
       </button>
 
@@ -434,7 +592,7 @@ export default function HealthCoachApp() {
         <button className="card card-green action-card" onClick={() => { setTab("food"); setSelectedDay(0); setFoodView("week"); }}>
           <div className="action-icon"><Utensils size={21} /></div>
           <div>
-            <div className="action-title">1.965 kcal</div>
+            <div className="action-title">{estimatedCalories.toLocaleString("es-ES")} kcal</div>
             <div className="action-subtitle">4 comidas medidas y preparadas para hoy</div>
           </div>
         </button>
@@ -501,7 +659,7 @@ export default function HealthCoachApp() {
       {foodView === "week" && (
         <>
           <div className="day-strip">
-            {week.map((day, index) => (
+            {personalizedWeek.map((day, index) => (
               <button key={day.short} className={`day-chip ${selectedDay === index ? "active" : ""}`} onClick={() => setSelectedDay(index)}>
                 <span>{day.short}</span><strong>{day.date}</strong>
               </button>
@@ -513,7 +671,7 @@ export default function HealthCoachApp() {
               <div>
                 <div className="pill pill-light"><Target size={13} /> Pérdida progresiva</div>
                 <div style={{ fontSize: 28, fontWeight: 870, letterSpacing: -1, marginTop: 15 }}>{totals.calories} kcal</div>
-                <div style={{ opacity: .72, fontSize: 12, marginTop: 2 }}>Plan medido para {currentWeight.toFixed(1)} kg</div>
+                <div style={{ opacity: .72, fontSize: 12, marginTop: 2 }}>Plan estimado para {currentWeight.toFixed(1)} kg</div>
               </div>
               <Gauge size={32} style={{ opacity: .65 }} />
             </div>
@@ -591,7 +749,7 @@ export default function HealthCoachApp() {
           <div className="card">
             <div className="tag-list">
               {blockedFoods.map((food) => (
-                <button key={food} className="food-tag blocked" onClick={() => setBlockedFoods((foods) => foods.filter((item) => item !== food))}>
+                <button key={food} className="food-tag blocked" onClick={() => void deletePreference(food, "blocked")}>
                   <Ban size={14} /> {food} <X size={13} />
                 </button>
               ))}
@@ -606,20 +764,26 @@ export default function HealthCoachApp() {
           <div className="card">
             <div className="tag-list">
               {favoriteFoods.map((food) => (
-                <button key={food} className="food-tag favorite" onClick={() => setFavoriteFoods((foods) => foods.filter((item) => item !== food))}>
+                <button key={food} className="food-tag favorite" onClick={() => void deletePreference(food, "favorite")}>
                   <Heart size={14} fill="currentColor" /> {food} <X size={13} />
                 </button>
               ))}
-              <button className="food-tag" onClick={() => setToast("En la versión completa se abrirá el buscador de alimentos")}><Plus size={14} /> Añadir</button>
+            </div>
+            <div className="input-row">
+              <input className="text-input" value={favoriteInput} onChange={(event) => setFavoriteInput(event.target.value)} onKeyDown={(event) => event.key === "Enter" && void addPreference(favoriteInput, "favorite")} placeholder="Añadir alimento favorito" />
+              <button className="primary-button" onClick={() => void addPreference(favoriteInput, "favorite")}><Plus size={18} /></button>
             </div>
           </div>
 
           <div className="section-header"><h2 className="section-title">Restricciones críticas</h2></div>
           <div className="card">
-            <div className="setting-row">
-              <div className="setting-icon"><BadgeCheck size={20} /></div>
-              <div className="setting-copy"><div className="setting-name">Alergias e intolerancias</div><div className="setting-value">Sin alergias registradas</div></div>
-              <ChevronRight size={17} />
+            <div className="setting-row" style={{ display: "block" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
+                <div className="setting-icon"><BadgeCheck size={20} /></div>
+                <div className="setting-copy"><div className="setting-name">Alergias e intolerancias</div><div className="setting-value">{allergies.length ? `${allergies.length} restricciones críticas` : "Sin alergias registradas"}</div></div>
+              </div>
+              {allergies.length > 0 && <div className="tag-list" style={{ marginTop: 12 }}>{allergies.map((food) => <button key={food} className="food-tag blocked" onClick={() => void deletePreference(food, "allergy")}><BadgeCheck size={14} /> {food} <X size={13} /></button>)}</div>}
+              <div className="input-row"><input className="text-input" value={allergyInput} onChange={(event) => setAllergyInput(event.target.value)} onKeyDown={(event) => event.key === "Enter" && void addPreference(allergyInput, "allergy")} placeholder="Añadir alergia o intolerancia" /><button className="primary-button" onClick={() => void addPreference(allergyInput, "allergy")}><Plus size={18} /></button></div>
             </div>
             <div className="setting-row">
               <div className="setting-icon"><Info size={20} /></div>
@@ -772,7 +936,7 @@ export default function HealthCoachApp() {
       <div className="card">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}><div><div className="meal-kicker">Peso actual</div><div style={{ fontSize: 29, fontWeight: 870, letterSpacing: -1 }}>{currentWeight.toFixed(1)} kg</div></div><div style={{ color: "var(--green)", fontWeight: 800, fontSize: 12 }}>−0,6 kg</div></div>
         <div className="weight-chart">
-          {[96.9, 96.1, 95.3, 94.5, 93.6, currentWeight].map((value, index) => {
+          {(weightLogs.length ? weightLogs.slice(-6).map((item) => item.weight_kg) : [96.9, 96.1, 95.3, 94.5, 93.6, currentWeight]).map((value, index) => {
             const height = 45 + (97 - value) * 14;
             return <div className="chart-bar" key={index} style={{ height: `${height}px` }}><span>S{index + 1}</span></div>;
           })}
@@ -790,24 +954,24 @@ export default function HealthCoachApp() {
 
   const renderProfile = () => (
     <>
-      <div className="page-header"><div><div className="meal-kicker">Tu configuración</div><h1 className="page-title">Perfil</h1></div><button className="icon-button"><Settings2 size={21} /></button></div>
+      <div className="page-header"><div><div className="meal-kicker">Tu configuración</div><h1 className="page-title">Perfil</h1></div><button className="icon-button" onClick={() => setProfileModal(true)}><Settings2 size={21} /></button></div>
 
       <div className="card card-green" style={{ display: "flex", gap: 14, alignItems: "center" }}>
-        <div className="avatar" style={{ width: 58, height: 58, fontSize: 20 }}>M</div>
-        <div><div style={{ fontSize: 21, fontWeight: 860, letterSpacing: -.6 }}>Marc</div><div style={{ fontSize: 12, opacity: .72, marginTop: 3 }}>Objetivo: perder peso y ganar forma</div></div>
+        <div className="avatar" style={{ width: 58, height: 58, fontSize: 20 }}>{currentProfile.name.slice(0, 1).toUpperCase()}</div>
+        <div><div style={{ fontSize: 21, fontWeight: 860, letterSpacing: -.6 }}>{currentProfile.name}</div><div style={{ fontSize: 12, opacity: .72, marginTop: 3 }}>Objetivo: {currentProfile.goal === "lose" ? "perder peso" : currentProfile.goal === "gain" ? "ganar músculo" : "mantener el peso"}</div></div>
       </div>
 
       <div className="section-header"><h2 className="section-title">Datos del plan</h2></div>
       <div className="card">
-        <div className="setting-row"><div className="setting-icon"><Scale size={20} /></div><div className="setting-copy"><div className="setting-name">Peso y objetivo</div><div className="setting-value">{currentWeight.toFixed(1)} kg → 80 kg</div></div><ChevronRight size={17} /></div>
-        <div className="setting-row"><div className="setting-icon"><Target size={20} /></div><div className="setting-copy"><div className="setting-name">Altura y actividad</div><div className="setting-value">179 cm · actividad moderada</div></div><ChevronRight size={17} /></div>
-        <div className="setting-row"><div className="setting-icon"><CalendarDays size={20} /></div><div className="setting-copy"><div className="setting-name">Día de pesaje</div><div className="setting-value">Domingo por la mañana</div></div><ChevronRight size={17} /></div>
+        <div className="setting-row"><div className="setting-icon"><Scale size={20} /></div><div className="setting-copy"><div className="setting-name">Peso y objetivo</div><div className="setting-value">{currentWeight.toFixed(1)} kg → {currentProfile.target_weight_kg} kg</div></div><ChevronRight size={17} /></div>
+        <div className="setting-row"><div className="setting-icon"><Target size={20} /></div><div className="setting-copy"><div className="setting-name">Altura y actividad</div><div className="setting-value">{currentProfile.height_cm} cm · actividad {currentProfile.activity_level}</div></div><ChevronRight size={17} /></div>
+        <div className="setting-row"><div className="setting-icon"><CalendarDays size={20} /></div><div className="setting-copy"><div className="setting-name">Día de pesaje</div><div className="setting-value">{formatWeighingDay(currentProfile.weighing_day)} por la mañana</div></div><ChevronRight size={17} /></div>
       </div>
 
       <div className="section-header"><h2 className="section-title">Preferencias</h2></div>
       <div className="card">
         <div className="setting-row" onClick={() => { setTab("food"); setFoodView("preferences"); }} style={{ cursor: "pointer" }}><div className="setting-icon"><Ban size={20} /></div><div className="setting-copy"><div className="setting-name">Alimentos bloqueados</div><div className="setting-value">{blockedFoods.length} alimentos nunca aparecerán</div></div><ChevronRight size={17} /></div>
-        <div className="setting-row"><div className="setting-icon"><Dumbbell size={20} /></div><div className="setting-copy"><div className="setting-name">Tipo de ejercicio</div><div className="setting-value">Gimnasio + running · 3 días</div></div><ChevronRight size={17} /></div>
+        <div className="setting-row"><div className="setting-icon"><Dumbbell size={20} /></div><div className="setting-copy"><div className="setting-name">Tipo de ejercicio</div><div className="setting-value">{currentProfile.exercise_types.join(" + ")} · {currentProfile.training_days} días</div></div><ChevronRight size={17} /></div>
         <div className="setting-row"><div className="setting-icon"><Clock3 size={20} /></div><div className="setting-copy"><div className="setting-name">Horarios habituales</div><div className="setting-value">Comida 13:30 · Entreno 19:00</div></div><ChevronRight size={17} /></div>
       </div>
 
@@ -815,6 +979,8 @@ export default function HealthCoachApp() {
       <div className="card">
         <div className="setting-row"><div className="setting-icon"><Sparkles size={20} /></div><div className="setting-copy"><div className="setting-name">Personalización activa</div><div className="setting-value">Aprende de pesos, cambios y cumplimiento</div></div><Check size={18} color="var(--green)" /></div>
         <div className="setting-row"><div className="setting-icon"><FileDown size={20} /></div><div className="setting-copy"><div className="setting-name">Plan semanal en PDF</div><div className="setting-value">Menús, alternativas y compra</div></div><button className="text-button" onClick={exportPDF}>Generar</button></div>
+        {userId && <div className="setting-row"><div className="setting-icon"><Cloud size={20} /></div><div className="setting-copy"><div className="setting-name">Sincronización</div><div className="setting-value">{syncing ? "Guardando cambios…" : "Datos sincronizados con Supabase"}</div></div><Check size={18} color="var(--green)" /></div>}
+        {onLogout && <button className="logout-button" onClick={() => void onLogout()}><LogOut size={18} /> Cerrar sesión</button>}
       </div>
     </>
   );
@@ -822,7 +988,6 @@ export default function HealthCoachApp() {
   return (
     <div className="app-stage">
       <div className="phone-shell">
-        <div className="status-bar"><span>9:41</span><div className="status-icons"><div className="status-dot" /><div className="status-dot" /><div className="status-dot" /><div className="status-battery"><span /></div></div></div>
         <main className="screen">
           {tab === "today" && renderToday()}
           {tab === "food" && renderFood()}
@@ -882,9 +1047,29 @@ export default function HealthCoachApp() {
           </div>
         )}
 
+        {profileModal && (
+          <div className="modal-backdrop" onClick={() => setProfileModal(false)}>
+            <div className="modal-sheet" onClick={(event) => event.stopPropagation()}>
+              <div className="sheet-handle" />
+              <span className="pill pill-green"><Settings2 size={13} /> Datos del plan</span>
+              <h2 className="modal-title" style={{ marginTop: 13 }}>Editar perfil</h2>
+              <p className="modal-subtitle">Los cambios recalculan la estimación energética y las cantidades de la semana.</p>
+              <div className="form-grid two">
+                <label className="auth-field"><span>Nombre</span><div><input value={profileDraft.name} onChange={(event) => setProfileDraft({ ...profileDraft, name: event.target.value })} /></div></label>
+                <label className="auth-field"><span>Altura (cm)</span><div><input type="number" value={profileDraft.height_cm} onChange={(event) => setProfileDraft({ ...profileDraft, height_cm: Number(event.target.value) })} /></div></label>
+                <label className="auth-field"><span>Peso objetivo</span><div><input type="number" step="0.1" value={profileDraft.target_weight_kg} onChange={(event) => setProfileDraft({ ...profileDraft, target_weight_kg: Number(event.target.value) })} /></div></label>
+                <label className="auth-field"><span>Días de entreno</span><div><input type="number" min="0" max="7" value={profileDraft.training_days} onChange={(event) => setProfileDraft({ ...profileDraft, training_days: Number(event.target.value) })} /></div></label>
+                <label className="auth-field"><span>Objetivo</span><div><select value={profileDraft.goal} onChange={(event) => setProfileDraft({ ...profileDraft, goal: event.target.value as Profile["goal"] })}><option value="lose">Perder peso</option><option value="maintain">Mantener</option><option value="gain">Ganar músculo</option></select></div></label>
+                <label className="auth-field"><span>Día de pesaje</span><div><select value={profileDraft.weighing_day} onChange={(event) => setProfileDraft({ ...profileDraft, weighing_day: Number(event.target.value) })}>{["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"].map((day, index) => <option value={index} key={day}>{day}</option>)}</select></div></label>
+              </div>
+              <button className="primary-button green full" onClick={() => void saveProfileEditor()}><Check size={18} /> Guardar cambios</button>
+            </div>
+          </div>
+        )}
+
         {toast && <div className="toast">{toast}</div>}
       </div>
-      <div className="desktop-hint"><strong>Prototipo iPhone de RITMO</strong>Usa la navegación inferior, abre comidas, registra series, bloquea alimentos y genera el PDF semanal.</div>
+      <div className="desktop-hint"><strong>RITMO · Entrenador personal</strong>La versión conectada sincroniza perfil, peso, preferencias, compra y entrenamientos mediante Supabase.</div>
     </div>
   );
 }

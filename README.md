@@ -1,60 +1,54 @@
-# RITMO — prototipo de entrenador personal
+# Ritmo Coach
 
-Prototipo funcional mobile-first, diseñado para iPhone, construido con React + Vite.
+Aplicación mobile-first para iPhone con:
 
-## Funciones incluidas
+- Registro e inicio de sesión mediante Supabase Auth.
+- Onboarding guiado con objetivo, altura, peso, actividad, ejercicio y día de pesaje.
+- Perfil sincronizado entre dispositivos.
+- Pesaje semanal e historial por kilos.
+- Alimentos bloqueados, favoritos, alergias e intolerancias.
+- Menú semanal personalizado mediante una estimación energética inicial.
+- Lista de compra interactiva sincronizada.
+- Gimnasio guiado con vídeos, técnica, series, kilos y repeticiones.
+- Generación del plan semanal para imprimir o guardar como PDF.
+- Modo demostración automático cuando no existen variables de Supabase.
 
-- Inicio diario con objetivo, peso y siguiente comida.
-- Pesaje semanal y adaptación visual del plan.
-- Menú completo de lunes a domingo con cantidades en gramos.
-- Calorías, proteína y alternativas equivalentes por comida.
-- Lista de la compra interactiva agrupada por categorías.
-- Alimentos bloqueados que nunca deben incluirse.
-- Alimentos favoritos y apartado de alergias/intolerancias.
-- Documento semanal preparado para imprimir o guardar como PDF.
-- Plan de gimnasio y running.
-- Modo gimnasio guiado con series, kilos, repeticiones, técnica y errores.
-- Progresión recomendada según el rendimiento anterior.
-- Evolución del peso, adherencia y estadísticas.
-- Persistencia local de peso, bloqueos y lista de compra.
+> La estimación nutricional es orientativa y está pensada para bienestar general en adultos. No sustituye la valoración de un profesional sanitario o dietista-nutricionista.
 
-## Ejecutar el proyecto
-
-Requiere Node.js 18 o superior.
+## 1. Instalar
 
 ```bash
 npm install
 npm run dev
 ```
 
-Después abre la dirección local que muestra Vite.
+## 2. Crear Supabase
 
-## Crear versión de producción
+1. Crea un proyecto en Supabase.
+2. Abre `SQL Editor`.
+3. Copia y ejecuta todo `supabase/schema.sql`.
+4. En `Authentication > URL Configuration`, configura:
+   - Site URL: la URL de Vercel.
+   - Redirect URLs: la URL de Vercel y `http://localhost:5173/**`.
+5. Copia Project URL y Publishable/anon key.
 
-```bash
-npm run build
-npm run preview
+Crea `.env.local`:
+
+```env
+VITE_SUPABASE_URL=https://TU-PROYECTO.supabase.co
+VITE_SUPABASE_ANON_KEY=TU_CLAVE_PUBLICA
 ```
 
-## Estado actual
+## 3. Variables en Vercel
 
-Es una primera versión funcional de interfaz y flujo. Los menús, cálculos y recomendaciones incluidos son datos de demostración. Antes de utilizarlo con usuarios reales faltará conectar:
+En `Project > Settings > Environment Variables`, añade las mismas variables para Production, Preview y Development. Después haz un Redeploy sin caché.
 
-- Supabase y autenticación.
-- Motor nutricional validado.
-- Generación de planes mediante IA con validación determinista.
-- Base de datos de alimentos y nutrientes.
-- Base de ejercicios y vídeos.
-- Notificaciones de pesaje en iPhone.
-- Reglas clínicas y de seguridad.
+## 4. Subir cambios
 
-## Vídeos de ejercicios
+```bash
+git add .
+git commit -m "Conectar Ritmo con Supabase"
+git push
+```
 
-La guía de entrenamiento reproduce vídeos reales mediante `<video playsInline>` para mantenerlos dentro de la interfaz del iPhone. Los vídeos se cargan desde Wikimedia Commons y requieren conexión a internet.
-
-Créditos incluidos dentro de la propia aplicación:
-
-- **Press de pecho en máquina** — Centers for Disease Control and Prevention — dominio público.
-- **Remo inclinado, press de hombros, sentadilla, peso muerto y dominadas** — FitnessScape — Creative Commons Attribution 3.0.
-
-Los enlaces de atribución y licencia aparecen bajo cada reproductor. Para una versión comercial conviene almacenar copias optimizadas propias o sustituirlas por una biblioteca audiovisual producida específicamente para la aplicación.
+Vercel publicará automáticamente la nueva versión.
