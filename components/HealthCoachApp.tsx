@@ -989,15 +989,13 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
   }, []);
 
   return (
-    <AppLayout title={tabTitles[tab]} tab={tab} onTabChange={handleTabChange}>
-      <>
-        {tab === "today" && renderToday()}
-        {tab === "food" && renderFood()}
-        {tab === "training" && renderTraining()}
-        {tab === "progress" && renderProgress()}
-        {tab === "profile" && renderProfile()}
-
-        {weightModal && (
+    <AppLayout
+      title={tabTitles[tab]}
+      tab={tab}
+      onTabChange={handleTabChange}
+      overlay={
+        <>
+          {weightModal && (
           <div className="modal-backdrop" onClick={() => setWeightModal(false)}>
             <div className="modal-sheet" onClick={(event) => event.stopPropagation()}>
               <div className="sheet-handle" />
@@ -1057,7 +1055,14 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
         )}
 
         {toast && <div className="toast">{toast}</div>}
-      </>
+        </>
+      }
+    >
+      {tab === "today" && renderToday()}
+      {tab === "food" && renderFood()}
+      {tab === "training" && renderTraining()}
+      {tab === "progress" && renderProgress()}
+      {tab === "profile" && renderProfile()}
     </AppLayout>
   );
 }
