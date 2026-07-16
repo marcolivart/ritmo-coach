@@ -70,7 +70,10 @@ button { -webkit-tap-highlight-color: transparent; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: calc(14px + env(safe-area-inset-top)) 18px 12px;
+  padding-top: max(30px, calc(14px + env(safe-area-inset-top)));
+  padding-right: 18px;
+  padding-bottom: 12px;
+  padding-left: 18px;
   background: rgba(250, 251, 247, .92);
   backdrop-filter: blur(18px);
   border-bottom: 1px solid rgba(28, 33, 29, .06);
@@ -79,9 +82,10 @@ button { -webkit-tap-highlight-color: transparent; }
 .app-header-actions { display: flex; align-items: center; gap: 8px; }
 .avatar-small { width: 30px; height: 30px; font-size: 12px; border-width: 2px; }
 
-/* Cuando hay header fijo, el contenido necesita más padding-top que compense su altura */
+/* Cuando hay header fijo, el contenido necesita más padding-top que compense su altura.
+   max() garantiza espacio suficiente aunque env(safe-area-inset-top) devuelva 0. */
 .screen-with-header {
-  padding-top: calc(58px + env(safe-area-inset-top));
+  padding-top: max(67px, calc(51px + env(safe-area-inset-top)));
 }
 
 /* V2: transición entre pestañas, estilo iOS */

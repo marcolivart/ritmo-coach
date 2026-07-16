@@ -137,20 +137,20 @@ export async function saveExerciseSet(input: {
 }
 
 /** Sets de entreno registrados entre dos fechas (ISO), usados para los
- *  widgets de progreso de "Hoy" (anillo de entreno, entreno de la semana). */
+ *  widgets de "Hoy" y las estadísticas reales de "Progreso". */
 export async function getExerciseSetsInRange(
   userId: string,
   fromISO: string,
   toISO: string,
-): Promise<{ performed_at: string }[]> {
+): Promise<{ performed_at: string; weight_kg: number | null; repetitions: number | null }[]> {
   const { data, error } = await client()
     .from("exercise_sets")
-    .select("performed_at")
+    .select("performed_at, weight_kg, repetitions")
     .eq("user_id", userId)
     .gte("performed_at", fromISO)
     .lte("performed_at", toISO);
   raise(error);
-  return (data ?? []) as { performed_at: string }[];
+  return (data ?? []) as { performed_at: string; weight_kg: number | null; repetitions: number | null }[];
 }
 
 /** Borra todo el historial (peso, entrenos, preferencias, lista de la compra)

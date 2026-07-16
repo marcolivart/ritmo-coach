@@ -54,6 +54,7 @@ import {
   setGroceryChecked,
 } from "../src/lib/database";
 import { daysUntilWeighIn, estimateDailyCalories, estimateDailyProtein, formatWeighingDay, mondayISO, weighInStreakWeeks } from "../src/lib/nutrition";
+import { distinctTrainingDays, strengthTrendPercent, weeksAgoMondayISO, type ExerciseSetRecord } from "../src/lib/stats";
 
 import type { Tab } from "../src/lib/routes";
 type FoodView = "week" | "shopping" | "preferences";
@@ -339,7 +340,7 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
     { kg: "25", reps: "11", done: false },
     { kg: "25", reps: "", done: false },
   ]);
-  const [weekExerciseSets, setWeekExerciseSets] = useState<{ performed_at: string }[]>([]);
+  const [recentExerciseSets, setRecentExerciseSets] = useState<ExerciseSetRecord[]>([]);
 
   useEffect(() => {
     setCurrentWeight(effectiveProfile.current_weight_kg);
@@ -351,14 +352,12 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
     if (userId) {
       setSyncing(true);
       const weekStart = mondayISO();
-      const weekEnd = new Date(`${weekStart}T00:00:00`);
-      weekEnd.setDate(weekEnd.getDate() + 6);
-      const weekEndISO = `${weekEnd.toISOString().slice(0, 10)}T23:59:59`;
+      const rangeStart = weeksAgoMondayISO(5); // 6 semanas completas, incluida la actual
       Promise.all([
         getFoodPreferences(userId),
         getWeightLogs(userId),
         getGroceries(userId, weekStart),
-        getExerciseSetsInRange(userId, `${weekStart}T00:00:00`, weekEndISO),
+        getExerciseSetsInRange(userId, `${rangeStart}T00:00:00`, `${new Date().toISOString().slice(0, 10)}T23:59:59`),
       ])
         .then(async ([preferences, logs, remoteGroceries, exerciseSets]) => {
           setPreferenceRecords(preferences);
@@ -366,7 +365,7 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
           setFavoriteFoods(preferences.filter((item) => item.restriction_type === "favorite").map((item) => item.food_name));
           setAllergies(preferences.filter((item) => item.restriction_type === "allergy").map((item) => item.food_name));
           setWeightLogs(logs);
-          setWeekExerciseSets(exerciseSets);
+          setRecentExerciseSets(exerciseSets);
           const items = remoteGroceries.length ? remoteGroceries : await seedGroceries(userId, weekStart, personalizeGroceries(effectiveProfile).map(({ category, name, amount, checked }) => ({ category, name, amount, checked })));
           setGroceries(items.map((item) => ({ id: String(item.id), category: item.category, name: item.name, amount: item.amount, checked: item.checked })));
           if (isWeeklyWeightDue(logs)) setWeightModal(true);
@@ -409,16 +408,22 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
   const estimatedProtein = estimateDailyProtein(currentProfile);
   const weightDue = isWeeklyWeightDue(weightLogs);
 
-  // --- Datos reales para los widgets/anillos de "Hoy" ---
+  // --- Datos reales para los widgets/anillos de "Hoy" y las stats de "Progreso" ---
+  const weekExerciseSets = useMemo(() => {
+    const weekStart = mondayISO();
+    return recentExerciseSets.filter((set) => set.performed_at.slice(0, 10) >= weekStart);
+  }, [recentExerciseSets]);
   const totalSetsPerWorkout = exercises.length * 3;
   const setsCompletedToday = useMemo(() => {
     const todayISO = new Date().toISOString().slice(0, 10);
     return weekExerciseSets.filter((set) => set.performed_at.slice(0, 10) === todayISO).length;
   }, [weekExerciseSets]);
-  const workoutDaysThisWeek = useMemo(() => {
-    const days = new Set(weekExerciseSets.map((set) => set.performed_at.slice(0, 10)));
-    return days.size;
-  }, [weekExerciseSets]);
+  const workoutDaysThisWeek = useMemo(() => distinctTrainingDays(weekExerciseSets), [weekExerciseSets]);
+  const workoutDaysLast6Weeks = useMemo(() => distinctTrainingDays(recentExerciseSets), [recentExerciseSets]);
+  const strengthTrend = useMemo(() => strengthTrendPercent(recentExerciseSets), [recentExerciseSets]);
+  const weeklyAdherencePercent = currentProfile.training_days > 0
+    ? Math.round(Math.min(1, workoutDaysThisWeek / currentProfile.training_days) * 100)
+    : null;
   const weighInStreak = useMemo(() => weighInStreakWeeks(weightLogs), [weightLogs]);
   const daysToNextWeighIn = daysUntilWeighIn(currentProfile.weighing_day);
   const startWeightKg = weightLogs.length ? weightLogs[0].weight_kg : currentProfile.current_weight_kg;
@@ -535,7 +540,7 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
     if (userId && nextDone) {
       try {
         await saveExerciseSet({ userId, workoutName: "Torso A", exerciseName: exercises[activeExercise].name, setNumber: index + 1, weightKg: Number(setData[index].kg) || null, repetitions: Number(setData[index].reps) || null });
-        setWeekExerciseSets((sets) => [...sets, { performed_at: new Date().toISOString() }]);
+        setRecentExerciseSets((sets) => [...sets, { performed_at: new Date().toISOString(), weight_kg: Number(setData[index].kg) || null, repetitions: Number(setData[index].reps) || null }]);
         setToast(`Serie ${index + 1} sincronizada`);
       } catch (caught) { setToast(caught instanceof Error ? caught.message : "No se ha podido guardar la serie"); }
     }
@@ -1034,28 +1039,78 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
       <div className="page-header"><div><div className="meal-kicker">Últimas 6 semanas</div><h1 className="page-title">Progreso</h1></div><button className="icon-button" onClick={() => setWeightModal(true)}><Plus size={21} /></button></div>
 
       <div className="stat-grid">
-        <div className="stat-card"><div className="stat-value">−4,6 kg</div><div className="stat-label">Desde el inicio</div></div>
-        <div className="stat-card"><div className="stat-value">86%</div><div className="stat-label">Adherencia semanal</div></div>
-        <div className="stat-card"><div className="stat-value">8</div><div className="stat-label">Entrenos completados</div></div>
-        <div className="stat-card"><div className="stat-value">+18%</div><div className="stat-label">Fuerza estimada</div></div>
+        <div className="stat-card">
+          <div className="stat-value">{weightLogs.length ? `${totalWeightChangeKg > 0 ? "+" : ""}${totalWeightChangeKg.toFixed(1)} kg` : "—"}</div>
+          <div className="stat-label">Desde el inicio</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{weeklyAdherencePercent === null ? "—" : `${weeklyAdherencePercent}%`}</div>
+          <div className="stat-label">Adherencia semanal</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{workoutDaysLast6Weeks}</div>
+          <div className="stat-label">Días entrenados (6 sem.)</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{strengthTrend === null ? "—" : `${strengthTrend > 0 ? "+" : ""}${strengthTrend}%`}</div>
+          <div className="stat-label">Fuerza estimada</div>
+        </div>
       </div>
 
-      <div className="section-header"><h2 className="section-title">Evolución del peso</h2><span className="pill pill-green">Buen ritmo</span></div>
+      <div className="section-header">
+        <h2 className="section-title">Evolución del peso</h2>
+        {weeklyWeightDeltaKg !== null && (
+          <span className={`pill ${weeklyWeightDeltaKg <= 0 ? "pill-green" : "pill-soft"}`}>
+            {weeklyWeightDeltaKg <= 0 ? "Buen ritmo" : "Sube esta semana"}
+          </span>
+        )}
+      </div>
       <div className="card">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}><div><div className="meal-kicker">Peso actual</div><div style={{ fontSize: 29, fontWeight: 870, letterSpacing: -1 }}>{currentWeight.toFixed(1)} kg</div></div><div style={{ color: "var(--green)", fontWeight: 800, fontSize: 12 }}>−0,6 kg</div></div>
-        <div className="weight-chart">
-          {(weightLogs.length ? weightLogs.slice(-6).map((item) => item.weight_kg) : [96.9, 96.1, 95.3, 94.5, 93.6, currentWeight]).map((value, index) => {
-            const height = 45 + (97 - value) * 14;
-            return <div className="chart-bar" key={index} style={{ height: `${height}px` }}><span>S{index + 1}</span></div>;
-          })}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+          <div><div className="meal-kicker">Peso actual</div><div style={{ fontSize: 29, fontWeight: 870, letterSpacing: -1 }}>{currentWeight.toFixed(1)} kg</div></div>
+          {weeklyWeightDeltaKg !== null && (
+            <div style={{ color: weeklyWeightDeltaKg <= 0 ? "var(--green)" : "#a84d11", fontWeight: 800, fontSize: 12 }}>
+              {weeklyWeightDeltaKg > 0 ? "+" : ""}{weeklyWeightDeltaKg.toFixed(1)} kg
+            </div>
+          )}
         </div>
+        {weightLogs.length ? (
+          <div className="weight-chart">
+            {weightLogs.slice(-6).map((item, index) => {
+              const height = 45 + (97 - item.weight_kg) * 14;
+              return <div className="chart-bar" key={item.measured_at} style={{ height: `${Math.max(20, height)}px` }}><span>S{index + 1}</span></div>;
+            })}
+          </div>
+        ) : (
+          <p style={{ color: "var(--muted)", fontSize: 12.5, margin: "14px 0 0" }}>Aún no hay pesajes registrados. Se irán mostrando aquí cada semana.</p>
+        )}
       </div>
 
       <div className="section-header"><h2 className="section-title">Lectura semanal</h2></div>
       <div className="card">
-        <div className="meal-row"><div className="meal-icon"><Scale size={21} /></div><div className="meal-copy"><div className="meal-name">Pérdida dentro del objetivo</div><div className="meal-meta">No cambiaremos tus cantidades esta semana.</div></div><Check size={19} color="var(--green)" /></div>
-        <div className="meal-row"><div className="meal-icon"><Utensils size={21} /></div><div className="meal-copy"><div className="meal-name">Hambre bien controlada</div><div className="meal-meta">Valoración media: 2 de 5.</div></div><Check size={19} color="var(--green)" /></div>
-        <div className="meal-row"><div className="meal-icon"><Dumbbell size={21} /></div><div className="meal-copy"><div className="meal-name">Progresión en 4 ejercicios</div><div className="meal-meta">Subiremos carga en dos movimientos.</div></div><ChevronRight size={17} /></div>
+        <div className="meal-row">
+          <div className="meal-icon"><Scale size={21} /></div>
+          <div className="meal-copy">
+            <div className="meal-name">{weeklyWeightDeltaKg === null ? "Sin suficiente historial de peso" : weeklyWeightDeltaKg <= 0 ? "Peso bajando o estable" : "Peso al alza esta semana"}</div>
+            <div className="meal-meta">{weeklyWeightDeltaKg === null ? "Registra tu peso un par de semanas para ver la tendencia." : `${weeklyWeightDeltaKg > 0 ? "+" : ""}${weeklyWeightDeltaKg.toFixed(1)} kg frente a hace 7 días.`}</div>
+          </div>
+          {weeklyWeightDeltaKg !== null && <Check size={19} color={weeklyWeightDeltaKg <= 0 ? "var(--green)" : "var(--muted)"} />}
+        </div>
+        <div className="meal-row">
+          <div className="meal-icon"><Dumbbell size={21} /></div>
+          <div className="meal-copy">
+            <div className="meal-name">{workoutDaysThisWeek}/{currentProfile.training_days} días entrenados esta semana</div>
+            <div className="meal-meta">{weeklyAdherencePercent !== null && weeklyAdherencePercent >= 100 ? "Objetivo semanal cumplido." : "Basado en series guardadas en la app."}</div>
+          </div>
+          <Check size={19} color={weeklyAdherencePercent !== null && weeklyAdherencePercent >= 100 ? "var(--green)" : "var(--muted)"} />
+        </div>
+        <div className="meal-row">
+          <div className="meal-icon"><Flame size={21} /></div>
+          <div className="meal-copy">
+            <div className="meal-name">{weighInStreak ? `${weighInStreak} semanas seguidas pesándote` : "Aún sin racha de pesajes"}</div>
+            <div className="meal-meta">Pésate cada semana el mismo día para mantenerla.</div>
+          </div>
+        </div>
       </div>
     </>
   );
