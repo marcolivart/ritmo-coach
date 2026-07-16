@@ -271,7 +271,14 @@ button { -webkit-tap-highlight-color: transparent; }
 @media (max-width: 700px) {
   body { background:var(--bg); }
   .app-stage { padding:0; }
-  .phone-shell { width:100%; min-height:100dvh; max-height:none; border-radius:0; box-shadow:none; }
+  .phone-shell {
+    width:100%;
+    height:100vh;   /* fallback para navegadores sin soporte de svh */
+    height:100svh;  /* altura mínima garantizada visible: la barra de iOS no la empuja fuera de pantalla */
+    max-height:none;
+    border-radius:0;
+    box-shadow:none;
+  }
   .desktop-hint { display:none; }
 }
 
