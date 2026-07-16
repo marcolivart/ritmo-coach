@@ -56,7 +56,7 @@ button { -webkit-tap-highlight-color: transparent; }
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: none;
-  padding: calc(18px + env(safe-area-inset-top)) 18px 140px;
+  padding: calc(18px + env(safe-area-inset-top)) 18px 130px;
 }
 .screen::-webkit-scrollbar { display: none; }
 
@@ -156,7 +156,7 @@ button { -webkit-tap-highlight-color: transparent; }
 .meal-meta { margin-top:3px; font-size:11px; color:var(--muted); }
 .chevron-button { width:34px; height:34px; border-radius:50%; border:0; background:#f0f2ed; color:var(--ink); display:grid; place-items:center; cursor:pointer; flex:0 0 auto; }
 
-.bottom-nav { position:absolute; bottom:0; left:0; right:0; padding:14px 12px calc(16px + env(safe-area-inset-bottom)); background:rgba(250,251,247,.92); backdrop-filter:blur(18px); border-top:1px solid rgba(28,33,29,.06); display:grid; grid-template-columns:repeat(5,1fr); z-index:30; }
+.bottom-nav { position:absolute; bottom:0; left:0; right:0; padding:14px 12px calc(2px + env(safe-area-inset-bottom)); background:rgba(250,251,247,.92); backdrop-filter:blur(18px); border-top:1px solid rgba(28,33,29,.06); display:grid; grid-template-columns:repeat(5,1fr); z-index:30; }
 .nav-button { border:0; background:transparent; padding:8px 2px 2px; display:flex; flex-direction:column; align-items:center; gap:6px; color:#879087; font-size:12px; font-weight:720; cursor:pointer; }
 .nav-button.active { color:var(--green-deep); }
 .nav-icon-wrap { width:48px; height:42px; display:grid; place-items:center; border-radius:15px; }
