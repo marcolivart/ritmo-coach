@@ -1,22 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import AppLayout from "./layout/AppLayout";
 import {
   Apple,
   BadgeCheck,
   Ban,
-  BarChart3,
   CalendarDays,
   Check,
   ChevronRight,
-  CircleUserRound,
   Clock3,
   Dumbbell,
   FileDown,
   Flame,
   Gauge,
   Heart,
-  Home,
   Cloud,
   LogOut,
   Info,
@@ -55,7 +53,7 @@ import {
 } from "../src/lib/database";
 import { estimateDailyCalories, formatWeighingDay, mondayISO } from "../src/lib/nutrition";
 
-type Tab = "today" | "food" | "training" | "progress" | "profile";
+import type { Tab } from "../src/lib/routes";
 type FoodView = "week" | "shopping" | "preferences";
 type TrainingView = "overview" | "guide";
 
@@ -231,14 +229,6 @@ const exercises: WorkoutExercise[] = [
     technique: ["Agarra la barra con los hombros alejados de las orejas.", "Inicia el movimiento llevando los codos hacia abajo.", "Sube sin balancearte hasta acercar el pecho a la barra.", "Desciende de forma controlada hasta extender los brazos."],
     mistakes: [{ title: "Balancear el cuerpo", detail: "Aumenta la asistencia y controla cada repetición." }, { title: "Encoger los hombros", detail: "Mantén los hombros bajos al iniciar el tirón." }],
   },
-];
-
-const navItems = [
-  { key: "today" as Tab, label: "Hoy", icon: Home },
-  { key: "food" as Tab, label: "Comida", icon: Utensils },
-  { key: "training" as Tab, label: "Entreno", icon: Dumbbell },
-  { key: "progress" as Tab, label: "Progreso", icon: BarChart3 },
-  { key: "profile" as Tab, label: "Perfil", icon: CircleUserRound },
 ];
 
 const mealIcon = (type: string) => {
@@ -985,28 +975,27 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
     </>
   );
 
-  return (
-    <div className="app-stage">
-      <div className="phone-shell">
-        <main className="screen">
-          {tab === "today" && renderToday()}
-          {tab === "food" && renderFood()}
-          {tab === "training" && renderTraining()}
-          {tab === "progress" && renderProgress()}
-          {tab === "profile" && renderProfile()}
-        </main>
+  const tabTitles: Record<Tab, string> = {
+    today: "Hoy",
+    food: "Comida",
+    training: "Entreno",
+    progress: "Progreso",
+    profile: "Perfil",
+  };
 
-        <nav className="bottom-nav">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button key={item.key} className={`nav-button ${tab === item.key ? "active" : ""}`} onClick={() => { setTab(item.key); if (item.key === "training") setTrainingView("overview"); }}>
-                <span className="nav-icon-wrap"><Icon size={19} strokeWidth={tab === item.key ? 2.7 : 2.1} /></span>
-                {item.label}
-              </button>
-            );
-          })}
-        </nav>
+  const handleTabChange = useCallback((newTab: Tab) => {
+    setTab(newTab);
+    if (newTab === "training") setTrainingView("overview");
+  }, []);
+
+  return (
+    <AppLayout title={tabTitles[tab]} tab={tab} onTabChange={handleTabChange}>
+      <>
+        {tab === "today" && renderToday()}
+        {tab === "food" && renderFood()}
+        {tab === "training" && renderTraining()}
+        {tab === "progress" && renderProgress()}
+        {tab === "profile" && renderProfile()}
 
         {weightModal && (
           <div className="modal-backdrop" onClick={() => setWeightModal(false)}>
@@ -1068,8 +1057,7 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
         )}
 
         {toast && <div className="toast">{toast}</div>}
-      </div>
-      <div className="desktop-hint"><strong>RITMO · Entrenador personal</strong>La versión conectada sincroniza perfil, peso, preferencias, compra y entrenamientos mediante Supabase.</div>
-    </div>
+      </>
+    </AppLayout>
   );
 }
