@@ -131,6 +131,11 @@ button { -webkit-tap-highlight-color: transparent; }
 .activity-rings-label { font-weight:800; color:var(--ink); }
 .activity-rings-detail { margin-left:auto; color:var(--muted); font-weight:750; white-space:nowrap; }
 
+.today-plan-stats { display:flex; flex-direction:column; gap:12px; flex:1; min-width:0; }
+.today-plan-stat { display:flex; flex-direction:column; gap:2px; }
+.today-plan-stat-value { font-size:19px; font-weight:860; letter-spacing:-.3px; color:var(--ink); }
+.today-plan-stat-label { font-size:11px; color:var(--muted); font-weight:650; line-height:1.35; }
+
 /* V2.2: fila de widgets scrolleable */
 .widget-row { display:flex; gap:10px; overflow-x:auto; scrollbar-width:none; margin: 0 -2px 4px; padding: 2px 2px 4px; }
 .widget-row::-webkit-scrollbar { display:none; }
@@ -215,6 +220,12 @@ button { -webkit-tap-highlight-color: transparent; }
 .primary-button.green { background:var(--green); }
 .primary-button.full { width:100%; }
 .secondary-button { border:1px solid var(--line); border-radius:16px; padding:12px 15px; background:white; color:var(--ink); font-weight:800; display:inline-flex; align-items:center; justify-content:center; gap:8px; cursor:pointer; }
+.secondary-button.full { width:100%; }
+.danger-button { border:0; border-radius:14px; padding:10px 16px; background:#b3261e; color:white; font-weight:800; cursor:pointer; }
+.danger-button.full { width:100%; padding:13px; border-radius:16px; }
+.danger-button:disabled { opacity:.6; cursor:default; }
+.danger-card { border:1px solid #ffd6d1; background:#fff8f7; }
+.pill-danger { display:inline-flex; align-items:center; gap:5px; border-radius:999px; background:#ffe2de; color:#b3261e; font-size:11px; font-weight:850; padding:6px 10px; }
 
 .grocery-row { display:flex; gap:11px; align-items:center; padding:12px 0; border-bottom:1px solid var(--line); cursor:pointer; }
 .grocery-row:last-child { border-bottom:0; }

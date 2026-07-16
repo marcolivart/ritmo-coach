@@ -31,6 +31,7 @@ import {
   Sparkles,
   Target,
   TimerReset,
+  Trash2,
   TrendingDown,
   TrendingUp,
   Utensils,
@@ -45,6 +46,7 @@ import {
   getGroceries,
   getWeightLogs,
   removeFoodPreference,
+  resetUserData,
   saveExerciseSet,
   saveProfile,
   saveWeightLog,
@@ -312,6 +314,8 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
   const [trainingView, setTrainingView] = useState<TrainingView>("overview");
   const [selectedDay, setSelectedDay] = useState(0);
   const [weightModal, setWeightModal] = useState(false);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [mealModal, setMealModal] = useState<Meal | null>(null);
   const effectiveProfile = profile ?? demoProfile;
   const [newWeight, setNewWeight] = useState(String(effectiveProfile.current_weight_kg));
@@ -439,8 +443,6 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
   }, [currentWeight, startWeightKg, currentProfile.target_weight_kg]);
 
   const rings = {
-    calories: Math.min(1, estimatedCalories > 0 ? totals.calories / estimatedCalories : 0),
-    protein: Math.min(1, estimatedProtein > 0 ? totals.protein / estimatedProtein : 0),
     workout: Math.min(1, totalSetsPerWorkout > 0 ? setsCompletedToday / totalSetsPerWorkout : 0),
   };
   const checkedGroceries = groceries.filter((item) => item.checked).length;
@@ -507,6 +509,24 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
 
   const updateSet = (index: number, field: "kg" | "reps", value: string) => {
     setSetData((sets) => sets.map((set, i) => (i === index ? { ...set, [field]: value } : set)));
+  };
+
+  const handleResetData = async () => {
+    if (!userId) {
+      setToast("El modo demo no guarda datos, no hay nada que reiniciar");
+      setResetConfirmOpen(false);
+      return;
+    }
+    setResetting(true);
+    try {
+      const resetProfile = await resetUserData(userId);
+      setResetConfirmOpen(false);
+      onProfileChange?.(resetProfile);
+    } catch (caught) {
+      setToast(caught instanceof Error ? caught.message : "No se han podido reiniciar los datos");
+    } finally {
+      setResetting(false);
+    }
   };
 
   const toggleSetDone = async (index: number) => {
@@ -625,22 +645,31 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
     },
   ];
 
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Buenos días" : hour < 20 ? "Buenas tardes" : "Buenas noches";
+
   const renderToday = () => (
     <>
-      <h1 className="hero-title">Buenos días, {currentProfile.name}.<br />Hoy toca avanzar.</h1>
+      <h1 className="hero-title">{greeting}, {currentProfile.name}.<br />Hoy toca avanzar.</h1>
       <p className="hero-subtitle">Tu plan está adaptado a tu objetivo, tu último peso y el entrenamiento de esta semana.</p>
 
       <div className="card activity-rings-card">
         <ActivityRings
           rings={[
-            { value: rings.calories, color: "var(--green)", label: "Kcal", detail: `${totals.calories}/${estimatedCalories}` },
-            { value: rings.protein, color: "var(--lime)", label: "Proteína", detail: `${totals.protein}/${estimatedProtein} g` },
-            { value: rings.workout, color: "#ff9f5b", label: "Entreno", detail: `${setsCompletedToday}/${totalSetsPerWorkout} series` },
+            { value: rings.workout, color: "#ff9f5b", label: "Entreno de hoy", detail: `${setsCompletedToday}/${totalSetsPerWorkout} series` },
           ]}
+          size={100}
         />
-        <p style={{ fontSize: 11, color: "var(--muted)", margin: 0 }}>
-          Kcal y proteína muestran el menú de hoy frente a tu objetivo calculado. El entreno se actualiza al marcar series como hechas.
-        </p>
+        <div className="today-plan-stats">
+          <div className="today-plan-stat">
+            <span className="today-plan-stat-value">{totals.calories}</span>
+            <span className="today-plan-stat-label">kcal en el menú de hoy · objetivo {estimatedCalories}</span>
+          </div>
+          <div className="today-plan-stat">
+            <span className="today-plan-stat-value">{totals.protein} g</span>
+            <span className="today-plan-stat-label">proteína en el menú de hoy · objetivo {estimatedProtein} g</span>
+          </div>
+        </div>
       </div>
 
       <WidgetRow widgets={todayWidgets} />
@@ -1061,6 +1090,18 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
         {userId && <div className="setting-row"><div className="setting-icon"><Cloud size={20} /></div><div className="setting-copy"><div className="setting-name">Sincronización</div><div className="setting-value">{syncing ? "Guardando cambios…" : "Datos sincronizados con Supabase"}</div></div><Check size={18} color="var(--green)" /></div>}
         {onLogout && <button className="logout-button" onClick={() => void onLogout()}><LogOut size={18} /> Cerrar sesión</button>}
       </div>
+
+      <div className="section-header"><h2 className="section-title">Zona de peligro</h2></div>
+      <div className="card danger-card">
+        <div className="setting-row">
+          <div className="setting-icon" style={{ background: "#ffe2de", color: "#b3261e" }}><Trash2 size={20} /></div>
+          <div className="setting-copy">
+            <div className="setting-name">Reiniciar todos mis datos</div>
+            <div className="setting-value">Borra peso, entrenos, preferencias y compra. Vuelves al asistente de configuración.</div>
+          </div>
+          <button className="danger-button" onClick={() => setResetConfirmOpen(true)}>Reiniciar</button>
+        </div>
+      </div>
     </>
   );
 
@@ -1141,6 +1182,26 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
                 <label className="auth-field"><span>Día de pesaje</span><div><select value={profileDraft.weighing_day} onChange={(event) => setProfileDraft({ ...profileDraft, weighing_day: Number(event.target.value) })}>{["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"].map((day, index) => <option value={index} key={day}>{day}</option>)}</select></div></label>
               </div>
               <button className="primary-button green full" onClick={() => void saveProfileEditor()}><Check size={18} /> Guardar cambios</button>
+            </div>
+          </div>
+        )}
+
+        {resetConfirmOpen && (
+          <div className="modal-backdrop" onClick={() => !resetting && setResetConfirmOpen(false)}>
+            <div className="modal-sheet" onClick={(event) => event.stopPropagation()}>
+              <div className="sheet-handle" />
+              <span className="pill pill-danger"><Trash2 size={13} /> Acción irreversible</span>
+              <h2 className="modal-title" style={{ marginTop: 13 }}>¿Reiniciar todos tus datos?</h2>
+              <p style={{ color: "var(--muted)", fontSize: 13, lineHeight: 1.5, margin: "8px 0 20px" }}>
+                Se borrará tu historial de peso, tus series de entreno guardadas, tus preferencias de comida y tu lista de la compra.
+                Tu perfil volverá a los valores por defecto y tendrás que volver a hacer el asistente de configuración. No hay vuelta atrás.
+              </p>
+              <button className="danger-button full" disabled={resetting} onClick={() => void handleResetData()}>
+                {resetting ? "Borrando…" : "Sí, borrar todo"}
+              </button>
+              <button className="secondary-button full" style={{ marginTop: 10 }} disabled={resetting} onClick={() => setResetConfirmOpen(false)}>
+                Cancelar
+              </button>
             </div>
           </div>
         )}

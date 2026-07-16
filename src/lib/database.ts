@@ -152,3 +152,38 @@ export async function getExerciseSetsInRange(
   raise(error);
   return (data ?? []) as { performed_at: string }[];
 }
+
+/** Borra todo el historial (peso, entrenos, preferencias, lista de la compra)
+ *  y reinicia el perfil a los valores por defecto, como si el usuario
+ *  volviera a registrarse. Acción irreversible. */
+export async function resetUserData(userId: string): Promise<Profile> {
+  const tables = ["weight_logs", "exercise_sets", "food_preferences", "grocery_items"] as const;
+  for (const table of tables) {
+    const { error } = await client().from(table).delete().eq("user_id", userId);
+    raise(error);
+  }
+
+  const { data, error } = await client()
+    .from("profiles")
+    .update({
+      name: "Usuario",
+      sex: "other",
+      birth_date: null,
+      height_cm: 170,
+      current_weight_kg: 70,
+      target_weight_kg: 70,
+      goal: "maintain",
+      weighing_day: 0,
+      activity_level: "moderate",
+      exercise_types: ["Gimnasio"],
+      training_days: 3,
+      meal_count: 4,
+      onboarding_completed: false,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", userId)
+    .select()
+    .single();
+  raise(error);
+  return data as Profile;
+}
