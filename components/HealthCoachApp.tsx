@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AppLayout from "./layout/AppLayout";
+import ActivityRings from "./today/ActivityRings";
+import WidgetRow, { type WidgetDatum } from "./today/WidgetRow";
 import {
   Apple,
   BadgeCheck,
@@ -18,29 +20,27 @@ import {
   Cloud,
   LogOut,
   Info,
-  ListChecks,
-  Minus,
   MoreHorizontal,
   PackageCheck,
   Play,
   Plus,
   RefreshCw,
   Scale,
-  Search,
   Settings2,
   ShoppingBasket,
   Sparkles,
   Target,
   TimerReset,
-  Trash2,
+  TrendingDown,
+  TrendingUp,
   Utensils,
   Wheat,
   X,
-  Zap,
 } from "lucide-react";
 import type { FoodPreference, Profile, WeightLog } from "../src/types";
 import {
   addFoodPreference as addFoodPreferenceRecord,
+  getExerciseSetsInRange,
   getFoodPreferences,
   getGroceries,
   getWeightLogs,
@@ -51,7 +51,7 @@ import {
   seedGroceries,
   setGroceryChecked,
 } from "../src/lib/database";
-import { estimateDailyCalories, formatWeighingDay, mondayISO } from "../src/lib/nutrition";
+import { daysUntilWeighIn, estimateDailyCalories, estimateDailyProtein, formatWeighingDay, mondayISO, weighInStreakWeeks } from "../src/lib/nutrition";
 
 import type { Tab } from "../src/lib/routes";
 type FoodView = "week" | "shopping" | "preferences";
@@ -335,6 +335,7 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
     { kg: "25", reps: "11", done: false },
     { kg: "25", reps: "", done: false },
   ]);
+  const [weekExerciseSets, setWeekExerciseSets] = useState<{ performed_at: string }[]>([]);
 
   useEffect(() => {
     setCurrentWeight(effectiveProfile.current_weight_kg);
@@ -346,13 +347,22 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
     if (userId) {
       setSyncing(true);
       const weekStart = mondayISO();
-      Promise.all([getFoodPreferences(userId), getWeightLogs(userId), getGroceries(userId, weekStart)])
-        .then(async ([preferences, logs, remoteGroceries]) => {
+      const weekEnd = new Date(`${weekStart}T00:00:00`);
+      weekEnd.setDate(weekEnd.getDate() + 6);
+      const weekEndISO = `${weekEnd.toISOString().slice(0, 10)}T23:59:59`;
+      Promise.all([
+        getFoodPreferences(userId),
+        getWeightLogs(userId),
+        getGroceries(userId, weekStart),
+        getExerciseSetsInRange(userId, `${weekStart}T00:00:00`, weekEndISO),
+      ])
+        .then(async ([preferences, logs, remoteGroceries, exerciseSets]) => {
           setPreferenceRecords(preferences);
           setBlockedFoods(preferences.filter((item) => item.restriction_type === "blocked").map((item) => item.food_name));
           setFavoriteFoods(preferences.filter((item) => item.restriction_type === "favorite").map((item) => item.food_name));
           setAllergies(preferences.filter((item) => item.restriction_type === "allergy").map((item) => item.food_name));
           setWeightLogs(logs);
+          setWeekExerciseSets(exerciseSets);
           const items = remoteGroceries.length ? remoteGroceries : await seedGroceries(userId, weekStart, personalizeGroceries(effectiveProfile).map(({ category, name, amount, checked }) => ({ category, name, amount, checked })));
           setGroceries(items.map((item) => ({ id: String(item.id), category: item.category, name: item.name, amount: item.amount, checked: item.checked })));
           if (isWeeklyWeightDue(logs)) setWeightModal(true);
@@ -392,7 +402,47 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
   const selectedPlan = personalizedWeek[selectedDay];
   const totals = useMemo(() => calculateDailyTotals(selectedPlan), [selectedPlan]);
   const estimatedCalories = estimateDailyCalories(currentProfile);
+  const estimatedProtein = estimateDailyProtein(currentProfile);
   const weightDue = isWeeklyWeightDue(weightLogs);
+
+  // --- Datos reales para los widgets/anillos de "Hoy" ---
+  const totalSetsPerWorkout = exercises.length * 3;
+  const setsCompletedToday = useMemo(() => {
+    const todayISO = new Date().toISOString().slice(0, 10);
+    return weekExerciseSets.filter((set) => set.performed_at.slice(0, 10) === todayISO).length;
+  }, [weekExerciseSets]);
+  const workoutDaysThisWeek = useMemo(() => {
+    const days = new Set(weekExerciseSets.map((set) => set.performed_at.slice(0, 10)));
+    return days.size;
+  }, [weekExerciseSets]);
+  const weighInStreak = useMemo(() => weighInStreakWeeks(weightLogs), [weightLogs]);
+  const daysToNextWeighIn = daysUntilWeighIn(currentProfile.weighing_day);
+  const startWeightKg = weightLogs.length ? weightLogs[0].weight_kg : currentProfile.current_weight_kg;
+  const totalWeightChangeKg = weightLogs.length ? currentWeight - startWeightKg : 0;
+
+  const weeklyWeightDeltaKg = useMemo(() => {
+    if (weightLogs.length < 2) return null;
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const weekAgoISO = weekAgo.toISOString().slice(0, 10);
+    const priorLog = [...weightLogs].reverse().find((log) => log.measured_at <= weekAgoISO);
+    if (!priorLog) return null;
+    return currentWeight - priorLog.weight_kg;
+  }, [weightLogs, currentWeight]);
+
+  const weightProgressPercent = useMemo(() => {
+    const totalDistance = currentProfile.target_weight_kg - startWeightKg;
+    if (Math.abs(totalDistance) < 0.1) return 100;
+    const covered = currentWeight - startWeightKg;
+    const ratio = covered / totalDistance;
+    return Math.round(Math.max(0, Math.min(1, ratio)) * 100);
+  }, [currentWeight, startWeightKg, currentProfile.target_weight_kg]);
+
+  const rings = {
+    calories: Math.min(1, estimatedCalories > 0 ? totals.calories / estimatedCalories : 0),
+    protein: Math.min(1, estimatedProtein > 0 ? totals.protein / estimatedProtein : 0),
+    workout: Math.min(1, totalSetsPerWorkout > 0 ? setsCompletedToday / totalSetsPerWorkout : 0),
+  };
   const checkedGroceries = groceries.filter((item) => item.checked).length;
 
   const saveWeight = async () => {
@@ -465,6 +515,7 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
     if (userId && nextDone) {
       try {
         await saveExerciseSet({ userId, workoutName: "Torso A", exerciseName: exercises[activeExercise].name, setNumber: index + 1, weightKg: Number(setData[index].kg) || null, repetitions: Number(setData[index].reps) || null });
+        setWeekExerciseSets((sets) => [...sets, { performed_at: new Date().toISOString() }]);
         setToast(`Serie ${index + 1} sincronizada`);
       } catch (caught) { setToast(caught instanceof Error ? caught.message : "No se ha podido guardar la serie"); }
     }
@@ -547,18 +598,52 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
     setToast("Documento preparado para guardar como PDF");
   };
 
+  const todayWidgets: WidgetDatum[] = [
+    {
+      icon: Scale,
+      label: daysToNextWeighIn === 0 ? "Pesaje hoy" : `Pesaje en ${daysToNextWeighIn} día${daysToNextWeighIn === 1 ? "" : "s"}`,
+      value: formatWeighingDay(currentProfile.weighing_day).slice(0, 3),
+      tone: "green",
+    },
+    {
+      icon: totalWeightChangeKg <= 0 ? TrendingDown : TrendingUp,
+      label: weightLogs.length ? "Desde el inicio" : "Aún sin registros",
+      value: weightLogs.length ? `${totalWeightChangeKg > 0 ? "+" : ""}${totalWeightChangeKg.toFixed(1)} kg` : "—",
+      tone: "ink",
+    },
+    {
+      icon: Dumbbell,
+      label: "Días entrenados esta semana",
+      value: `${workoutDaysThisWeek}/${currentProfile.training_days}`,
+      tone: "lime",
+    },
+    {
+      icon: Flame,
+      label: weighInStreak ? "Semanas seguidas pesándote" : "Empieza tu racha esta semana",
+      value: weighInStreak ? String(weighInStreak) : "—",
+      tone: "orange",
+    },
+  ];
+
   const renderToday = () => (
     <>
-      <div className="topbar">
-        <div className="brand-lockup">
-          <div className="brand-mark"><Zap size={22} strokeWidth={2.8} /></div>
-          <div className="brand-name">ritmo</div>
-        </div>
-        <div className="topbar-actions">{syncing && <span className="sync-chip"><Cloud size={13} /> Guardando</span>}<div className="avatar">{currentProfile.name.slice(0, 1).toUpperCase()}</div></div>
-      </div>
-
       <h1 className="hero-title">Buenos días, {currentProfile.name}.<br />Hoy toca avanzar.</h1>
       <p className="hero-subtitle">Tu plan está adaptado a tu objetivo, tu último peso y el entrenamiento de esta semana.</p>
+
+      <div className="card activity-rings-card">
+        <ActivityRings
+          rings={[
+            { value: rings.calories, color: "var(--green)", label: "Kcal", detail: `${totals.calories}/${estimatedCalories}` },
+            { value: rings.protein, color: "var(--lime)", label: "Proteína", detail: `${totals.protein}/${estimatedProtein} g` },
+            { value: rings.workout, color: "#ff9f5b", label: "Entreno", detail: `${setsCompletedToday}/${totalSetsPerWorkout} series` },
+          ]}
+        />
+        <p style={{ fontSize: 11, color: "var(--muted)", margin: 0 }}>
+          Kcal y proteína muestran el menú de hoy frente a tu objetivo calculado. El entreno se actualiza al marcar series como hechas.
+        </p>
+      </div>
+
+      <WidgetRow widgets={todayWidgets} />
 
       <button className="card card-dark action-card" style={{ width: "100%", minHeight: 188 }} onClick={() => setWeightModal(true)}>
         <div className="weight-card-top">
@@ -567,9 +652,13 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
         </div>
         <div>
           <div className="weight-number">{currentWeight.toFixed(1)} <small>kg</small></div>
-          <div className="weight-delta">−0,6 kg esta semana · vas al ritmo correcto</div>
-          <div className="progress-track"><div className="progress-fill" style={{ width: "31%" }} /></div>
-          <div className="progress-labels"><span>Inicio {weightLogs[0]?.weight_kg?.toFixed(1) ?? currentProfile.current_weight_kg} kg</span><span>Objetivo {currentProfile.target_weight_kg} kg</span></div>
+          <div className="weight-delta">
+            {weeklyWeightDeltaKg === null
+              ? "Registra tu peso una semana más para ver la tendencia"
+              : `${weeklyWeightDeltaKg > 0 ? "+" : ""}${weeklyWeightDeltaKg.toFixed(1)} kg esta semana`}
+          </div>
+          <div className="progress-track"><div className="progress-fill" style={{ width: `${weightProgressPercent}%` }} /></div>
+          <div className="progress-labels"><span>Inicio {startWeightKg.toFixed(1)} kg</span><span>Objetivo {currentProfile.target_weight_kg} kg</span></div>
         </div>
       </button>
 
@@ -993,6 +1082,8 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
       title={tabTitles[tab]}
       tab={tab}
       onTabChange={handleTabChange}
+      avatarInitial={currentProfile.name.slice(0, 1).toUpperCase()}
+      syncing={syncing}
       overlay={
         <>
           {weightModal && (

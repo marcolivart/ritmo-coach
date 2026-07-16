@@ -8,13 +8,15 @@ interface AppLayoutProps {
   tab: Tab;
   onTabChange: (tab: Tab) => void;
   children: ReactNode;
+  avatarInitial?: string;
+  syncing?: boolean;
   /** Modales, toasts, etc. Se renderizan fuera del contenedor animado
    *  para que su `position:absolute` no quede atrapado por el `transform`
    *  de la animación de deslizamiento entre pestañas. */
   overlay?: ReactNode;
 }
 
-export default function AppLayout({ title, tab, onTabChange, children, overlay }: AppLayoutProps) {
+export default function AppLayout({ title, tab, onTabChange, children, avatarInitial, syncing, overlay }: AppLayoutProps) {
   const screenRef = useRef<HTMLDivElement>(null);
   const previousTabRef = useRef<Tab>(tab);
   const skipNextPush = useRef(false);
@@ -65,7 +67,7 @@ export default function AppLayout({ title, tab, onTabChange, children, overlay }
   return (
     <div className="app-stage">
       <div className="phone-shell">
-        <Header title={title} />
+        <Header title={title} avatarInitial={avatarInitial} syncing={syncing} />
         <main
           className="screen screen-with-header"
           ref={screenRef}

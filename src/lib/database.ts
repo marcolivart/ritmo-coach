@@ -135,3 +135,20 @@ export async function saveExerciseSet(input: {
   });
   raise(error);
 }
+
+/** Sets de entreno registrados entre dos fechas (ISO), usados para los
+ *  widgets de progreso de "Hoy" (anillo de entreno, entreno de la semana). */
+export async function getExerciseSetsInRange(
+  userId: string,
+  fromISO: string,
+  toISO: string,
+): Promise<{ performed_at: string }[]> {
+  const { data, error } = await client()
+    .from("exercise_sets")
+    .select("performed_at")
+    .eq("user_id", userId)
+    .gte("performed_at", fromISO)
+    .lte("performed_at", toISO);
+  raise(error);
+  return (data ?? []) as { performed_at: string }[];
+}
