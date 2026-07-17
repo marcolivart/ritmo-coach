@@ -252,6 +252,16 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
   const baseExercise = activeWorkout.exercises[activeExercise] ?? activeWorkout.exercises[0];
   const currentExercise = swappedExercises.has(baseExercise.name) ? buildAlternativeExercise(baseExercise) : baseExercise;
   const weekSchedule = useMemo(() => weekdaySlotsForTrainingDays(currentProfile.training_days), [currentProfile.training_days]);
+  const upcomingWorkouts = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const monday = new Date(`${mondayISO()}T12:00:00`);
+    const upcoming = weekSchedule.filter(({ weekday }) => {
+      const d = new Date(monday);
+      d.setDate(d.getDate() + weekday);
+      return d.toISOString().slice(0, 10) >= today;
+    });
+    return upcoming.length > 0 ? upcoming : weekSchedule;
+  }, [weekSchedule]);
   const latestByExercise = useMemo(() => latestSetsByExercise(recentExerciseSets), [recentExerciseSets]);
   const todayWorkout = useMemo(() => workouts.find((item) => item.id === todayScheduledWorkoutId(currentProfile.training_days)) ?? workouts[0], [currentProfile.training_days]);
   const todayTotalSets = todayWorkout.exercises.length * 3;
@@ -985,32 +995,23 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
 
         <div className="section-header"><h2 className="section-title">Tu semana</h2></div>
         <div className="card">
-          {weekSchedule.length === 0 ? (
+          {upcomingWorkouts.length === 0 ? (
             <div className="meal-row" style={{ padding: 0, border: 0 }}><div className="meal-copy"><div className="meal-name">Sin días de entreno configurados</div><div className="meal-meta">Ajusta tus días de entreno en Perfil.</div></div></div>
-          ) : (() => {
-            const todayISO = new Date().toISOString().slice(0, 10);
-            const upcoming = weekSchedule.filter(({ weekday }) => {
-              const monday = new Date(`${mondayISO()}T12:00:00`);
-              monday.setDate(monday.getDate() + weekday);
-              return monday.toISOString().slice(0, 10) >= todayISO;
-            });
-            const toShow = upcoming.length > 0 ? upcoming : weekSchedule;
-            return toShow.map(({ weekday, workoutId }) => {
-              const workout = workouts.find((item) => item.id === workoutId) ?? workouts[0];
-              const monday = new Date(`${mondayISO()}T12:00:00`);
-              monday.setDate(monday.getDate() + weekday);
-              const dateISO = monday.toISOString().slice(0, 10);
-              const isToday = weekday === todayWeekday;
-              const doneThatDay = recentExerciseSets.some((set) => set.performed_at.slice(0, 10) === dateISO);
-              return (
-                <div className="setting-row" key={weekday} onClick={() => selectWorkout(workoutId)} style={{ cursor: "pointer" }}>
-                  <div className="setting-icon"><Dumbbell size={20} /></div>
-                  <div className="setting-copy"><div className="setting-name">{shortDayNames[weekdayShortNames[weekday]] ?? weekdayShortNames[weekday]} · {workout.name}</div><div className="setting-value">{isToday ? "Hoy · " : ""}{workout.exercises.length} ejercicios</div></div>
-                  {doneThatDay ? <span className="pill pill-green">Listo</span> : <ChevronRight size={17} />}
-                </div>
-              );
-            });
-          })()}
+          ) : upcomingWorkouts.map(({ weekday, workoutId }) => {
+            const workout = workouts.find((item) => item.id === workoutId) ?? workouts[0];
+            const monday = new Date(`${mondayISO()}T12:00:00`);
+            monday.setDate(monday.getDate() + weekday);
+            const dateISO = monday.toISOString().slice(0, 10);
+            const isToday = weekday === todayWeekday;
+            const doneThatDay = recentExerciseSets.some((set) => set.performed_at.slice(0, 10) === dateISO);
+            return (
+              <div className="setting-row" key={weekday} onClick={() => selectWorkout(workoutId)} style={{ cursor: "pointer" }}>
+                <div className="setting-icon"><Dumbbell size={20} /></div>
+                <div className="setting-copy"><div className="setting-name">{shortDayNames[weekdayShortNames[weekday]] ?? weekdayShortNames[weekday]} · {workout.name}</div><div className="setting-value">{isToday ? "Hoy · " : ""}{workout.exercises.length} ejercicios</div></div>
+                {doneThatDay ? <span className="pill pill-green">Listo</span> : <ChevronRight size={17} />}
+              </div>
+            );
+          })}
         </div>
       </>
     );
