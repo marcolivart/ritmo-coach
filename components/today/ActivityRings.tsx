@@ -9,12 +9,13 @@ export interface RingDatum {
 interface ActivityRingsProps {
   rings: RingDatum[];
   size?: number;
+  showLegend?: boolean;
 }
 
 const STROKE_WIDTH = 11;
 const GAP = 5;
 
-export default function ActivityRings({ rings, size = 132 }: ActivityRingsProps) {
+export default function ActivityRings({ rings, size = 132, showLegend = true }: ActivityRingsProps) {
   const center = size / 2;
 
   return (
@@ -51,15 +52,17 @@ export default function ActivityRings({ rings, size = 132 }: ActivityRingsProps)
           );
         })}
       </svg>
-      <ul className="activity-rings-legend">
-        {rings.map((ring) => (
-          <li key={ring.label}>
-            <span className="activity-rings-dot" style={{ background: ring.color }} aria-hidden="true" />
-            <span className="activity-rings-label">{ring.label}</span>
-            <span className="activity-rings-detail">{ring.detail}</span>
-          </li>
-        ))}
-      </ul>
+      {showLegend && (
+        <ul className="activity-rings-legend">
+          {rings.map((ring) => (
+            <li key={ring.label}>
+              <span className="activity-rings-dot" style={{ background: ring.color }} aria-hidden="true" />
+              <span className="activity-rings-label">{ring.label}</span>
+              <span className="activity-rings-detail">{ring.detail}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

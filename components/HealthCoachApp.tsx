@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AppLayout from "./layout/AppLayout";
 import ActivityRings from "./today/ActivityRings";
-import WidgetRow, { type WidgetDatum } from "./today/WidgetRow";
 import {
   Apple,
   BadgeCheck,
@@ -53,7 +52,7 @@ import {
   seedGroceries,
   setGroceryChecked,
 } from "../src/lib/database";
-import { daysUntilWeighIn, estimateDailyCalories, estimateDailyProtein, formatWeighingDay, mondayISO, weighInStreakWeeks } from "../src/lib/nutrition";
+import { estimateDailyCalories, estimateDailyProtein, formatWeighingDay, mondayISO, weighInStreakWeeks } from "../src/lib/nutrition";
 import { distinctTrainingDays, strengthTrendPercent, weeksAgoMondayISO, type ExerciseSetRecord } from "../src/lib/stats";
 
 import type { Tab } from "../src/lib/routes";
@@ -425,7 +424,6 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
     ? Math.round(Math.min(1, workoutDaysThisWeek / currentProfile.training_days) * 100)
     : null;
   const weighInStreak = useMemo(() => weighInStreakWeeks(weightLogs), [weightLogs]);
-  const daysToNextWeighIn = daysUntilWeighIn(currentProfile.weighing_day);
   const startWeightKg = weightLogs.length ? weightLogs[0].weight_kg : currentProfile.current_weight_kg;
   const totalWeightChangeKg = weightLogs.length ? currentWeight - startWeightKg : 0;
 
@@ -623,125 +621,107 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
     setToast("Documento preparado para guardar como PDF");
   };
 
-  const todayWidgets: WidgetDatum[] = [
-    {
-      icon: Scale,
-      label: daysToNextWeighIn === 0 ? "Pesaje hoy" : `Pesaje en ${daysToNextWeighIn} día${daysToNextWeighIn === 1 ? "" : "s"}`,
-      value: formatWeighingDay(currentProfile.weighing_day).slice(0, 3),
-      tone: "green",
-    },
-    {
-      icon: totalWeightChangeKg <= 0 ? TrendingDown : TrendingUp,
-      label: weightLogs.length ? "Desde el inicio" : "Aún sin registros",
-      value: weightLogs.length ? `${totalWeightChangeKg > 0 ? "+" : ""}${totalWeightChangeKg.toFixed(1)} kg` : "—",
-      tone: "ink",
-    },
-    {
-      icon: Dumbbell,
-      label: "Días entrenados esta semana",
-      value: `${workoutDaysThisWeek}/${currentProfile.training_days}`,
-      tone: "lime",
-    },
-    {
-      icon: Flame,
-      label: weighInStreak ? "Semanas seguidas pesándote" : "Empieza tu racha esta semana",
-      value: weighInStreak ? String(weighInStreak) : "—",
-      tone: "orange",
-    },
-  ];
-
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Buenos días" : hour < 20 ? "Buenas tardes" : "Buenas noches";
+  const goalDirection = currentProfile.target_weight_kg < startWeightKg ? "perder" : currentProfile.target_weight_kg > startWeightKg ? "ganar" : "mantener";
+  const kgToGoal = Math.abs(currentWeight - currentProfile.target_weight_kg);
+  const workoutSetsToday = `${setsCompletedToday}/${totalSetsPerWorkout}`;
 
   const renderToday = () => (
     <>
-      <h1 className="hero-title">{greeting}, {currentProfile.name}.<br />Hoy toca avanzar.</h1>
-      <p className="hero-subtitle">Tu plan está adaptado a tu objetivo, tu último peso y el entrenamiento de esta semana.</p>
+      <h1 className="hero-title">{greeting},<br />{currentProfile.name}.</h1>
+      <p className="hero-subtitle">
+        {goalDirection === "mantener"
+          ? "Hoy toca sostener el ritmo."
+          : kgToGoal < 0.1
+            ? "Has llegado a tu objetivo. Toca consolidarlo."
+            : `Te ${kgToGoal.toFixed(1)} kg de tu objetivo. Vamos a por hoy.`}
+      </p>
 
-      <div className="card activity-rings-card">
-        <ActivityRings
-          rings={[
-            { value: rings.workout, color: "#ff9f5b", label: "Entreno de hoy", detail: `${setsCompletedToday}/${totalSetsPerWorkout} series` },
-          ]}
-          size={100}
-        />
-        <div className="today-plan-stats">
-          <div className="today-plan-stat">
-            <span className="today-plan-stat-value">{totals.calories}</span>
-            <span className="today-plan-stat-label">kcal en el menú de hoy · objetivo {estimatedCalories}</span>
-          </div>
-          <div className="today-plan-stat">
-            <span className="today-plan-stat-value">{totals.protein} g</span>
-            <span className="today-plan-stat-label">proteína en el menú de hoy · objetivo {estimatedProtein} g</span>
-          </div>
+      {/* HÉROE: progreso hacia el objetivo — el dato que importa cada día */}
+      <button className="hero-goal" onClick={() => setWeightModal(true)}>
+        <div className="hero-goal-head">
+          <span className="hero-goal-eyebrow">Tu peso</span>
+          {weeklyWeightDeltaKg !== null && (
+            <span className={`hero-goal-trend ${weeklyWeightDeltaKg <= 0 ? "down" : "up"}`}>
+              {weeklyWeightDeltaKg <= 0 ? <TrendingDown size={14} /> : <TrendingUp size={14} />}
+              {weeklyWeightDeltaKg > 0 ? "+" : ""}{weeklyWeightDeltaKg.toFixed(1)} kg / semana
+            </span>
+          )}
         </div>
-      </div>
-
-      <WidgetRow widgets={todayWidgets} />
-
-      <button className="card card-dark action-card" style={{ width: "100%", minHeight: 188 }} onClick={() => setWeightModal(true)}>
-        <div className="weight-card-top">
-          <span className="pill pill-light"><Scale size={14} /> Pesaje semanal</span>
-          <ChevronRight size={19} />
+        <div className="hero-goal-number">{currentWeight.toFixed(1)}<small>kg</small></div>
+        <div className="hero-goal-bar">
+          <div className="hero-goal-bar-fill" style={{ width: `${Math.max(4, weightProgressPercent)}%` }} />
         </div>
-        <div>
-          <div className="weight-number">{currentWeight.toFixed(1)} <small>kg</small></div>
-          <div className="weight-delta">
-            {weeklyWeightDeltaKg === null
-              ? "Registra tu peso una semana más para ver la tendencia"
-              : `${weeklyWeightDeltaKg > 0 ? "+" : ""}${weeklyWeightDeltaKg.toFixed(1)} kg esta semana`}
-          </div>
-          <div className="progress-track"><div className="progress-fill" style={{ width: `${weightProgressPercent}%` }} /></div>
-          <div className="progress-labels"><span>Inicio {startWeightKg.toFixed(1)} kg</span><span>Objetivo {currentProfile.target_weight_kg} kg</span></div>
+        <div className="hero-goal-foot">
+          <span>{startWeightKg.toFixed(1)} kg</span>
+          <span className="hero-goal-foot-pct">{weightProgressPercent}% del camino</span>
+          <span>{currentProfile.target_weight_kg} kg</span>
         </div>
       </button>
 
-      <div className="section-header">
-        <h2 className="section-title">Tu día</h2>
-        <button className="text-button" onClick={() => { setTab("food"); setFoodView("week"); }}>Ver semana</button>
-      </div>
+      {/* FOCO DE HOY: entreno del día, con el anillo donde sí hay algo que llenar */}
+      <button className="today-focus" onClick={() => setTab("training")}>
+        <ActivityRings rings={[{ value: rings.workout, color: "var(--green)", label: "", detail: "" }]} size={72} showLegend={false} />
+        <div className="today-focus-copy">
+          <span className="today-focus-eyebrow">Entreno de hoy</span>
+          <span className="today-focus-title">Torso A</span>
+          <span className="today-focus-meta">{setsCompletedToday === 0 ? "Aún no has empezado" : setsCompletedToday >= totalSetsPerWorkout ? "¡Completado! 💪" : `${workoutSetsToday} series hechas`}</span>
+        </div>
+        <ChevronRight size={20} className="today-focus-arrow" />
+      </button>
 
-      <div className="action-grid">
-        <button className="card card-green action-card" onClick={() => { setTab("food"); setSelectedDay(0); setFoodView("week"); }}>
-          <div className="action-icon"><Utensils size={21} /></div>
-          <div>
-            <div className="action-title">{estimatedCalories.toLocaleString("es-ES")} kcal</div>
-            <div className="action-subtitle">4 comidas medidas y preparadas para hoy</div>
-          </div>
-        </button>
-        <button className="card card-lime action-card" onClick={() => setTab("training")}>
-          <div className="action-icon"><Dumbbell size={21} /></div>
-          <div>
-            <div className="action-title">Torso A</div>
-            <div className="action-subtitle">6 ejercicios · 55 minutos</div>
-          </div>
-        </button>
-      </div>
-
-      <div className="section-header">
-        <h2 className="section-title">Siguiente comida</h2>
-        <span className="pill pill-soft"><Clock3 size={13} /> 13:30</span>
-      </div>
-      <div className="card">
-        <div className="meal-row" style={{ borderBottom: 0, padding: 0 }}>
-          <div className="meal-icon"><Utensils size={22} /></div>
-          <div className="meal-copy">
-            <div className="meal-kicker">Comida</div>
-            <div className="meal-name">Arroz con pollo y verduras</div>
-            <div className="meal-meta">685 kcal · 52 g proteína · 25 min</div>
-          </div>
-          <button className="chevron-button" onClick={() => setMealModal(week[0].meals[1])}><ChevronRight size={17} /></button>
+      {/* MÉTRICAS: franja compacta, tipografía protagonista */}
+      <div className="metric-strip">
+        <div className="metric">
+          <span className="metric-value">{weightLogs.length ? `${totalWeightChangeKg > 0 ? "+" : ""}${totalWeightChangeKg.toFixed(1)}` : "—"}</span>
+          <span className="metric-unit">kg</span>
+          <span className="metric-label">desde el inicio</span>
+        </div>
+        <div className="metric-divider" />
+        <div className="metric">
+          <span className="metric-value">{workoutDaysThisWeek}</span>
+          <span className="metric-unit">/{currentProfile.training_days}</span>
+          <span className="metric-label">entrenos semana</span>
+        </div>
+        <div className="metric-divider" />
+        <div className="metric">
+          <span className="metric-value">{weighInStreak || "—"}</span>
+          <span className="metric-unit">{weighInStreak ? "sem" : ""}</span>
+          <span className="metric-label">racha pesaje</span>
         </div>
       </div>
 
-      <div className="section-header"><h2 className="section-title">Mensaje de tu entrenador</h2></div>
-      <div className="card">
-        <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-          <div className="meal-icon" style={{ background: "var(--lime)", color: "var(--ink)" }}><Sparkles size={21} /></div>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 820, marginBottom: 5 }}>Esta semana no tocamos cantidades</div>
-            <div style={{ color: "var(--muted)", fontSize: 12, lineHeight: 1.5 }}>Has bajado a un ritmo sostenible y completaste los dos entrenamientos. Mantén el plan y busca una repetición más en el press.</div>
-          </div>
+      {/* PLAN DE HOY: comida + entreno como accesos, sin repetir */}
+      <div className="section-header">
+        <h2 className="section-title">Tu plan de hoy</h2>
+        <button className="text-button" onClick={() => { setTab("food"); setFoodView("week"); }}>Ver semana</button>
+      </div>
+
+      <button className="plan-card plan-card-food" onClick={() => { setTab("food"); setSelectedDay(0); setFoodView("week"); }}>
+        <div className="plan-card-icon"><Utensils size={20} /></div>
+        <div className="plan-card-body">
+          <div className="plan-card-title">Comida</div>
+          <div className="plan-card-meta">{estimatedCalories.toLocaleString("es-ES")} kcal · {estimatedProtein} g proteína · {currentProfile.meal_count} tomas</div>
+        </div>
+        <ChevronRight size={18} className="plan-card-arrow" />
+      </button>
+
+      <button className="plan-card plan-card-next" onClick={() => setMealModal(week[0].meals[1])}>
+        <div className="plan-card-icon"><Clock3 size={20} /></div>
+        <div className="plan-card-body">
+          <div className="plan-card-title">Siguiente comida · 13:30</div>
+          <div className="plan-card-meta">Arroz con pollo y verduras · 685 kcal</div>
+        </div>
+        <ChevronRight size={18} className="plan-card-arrow" />
+      </button>
+
+      {/* MENSAJE DEL COACH */}
+      <div className="coach-note">
+        <div className="coach-note-icon"><Sparkles size={19} /></div>
+        <div>
+          <div className="coach-note-title">Esta semana no tocamos cantidades</div>
+          <div className="coach-note-text">Bajas a un ritmo sostenible y completaste los entrenos. Mantén el plan y busca una repetición más en el press.</div>
         </div>
       </div>
     </>
