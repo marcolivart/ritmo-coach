@@ -182,7 +182,9 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
           setExcludedMealKeys(excludedKeysSet);
           setCompletions(new Set(mealCompletions.map((item) => `${item.completed_date}-${item.meal_type}`)));
           const personalized = personalizeWeek(effectiveProfile, excludedKeysSet, blockedNames);
-          const items = remoteGroceries.length ? remoteGroceries : await seedGroceries(userId, weekStart, buildGroceryListFromWeek(personalized, blockedNames).map(({ category, name, amount, checked }) => ({ category, name, amount, checked })));
+          const groceryItems = buildGroceryListFromWeek(personalized, blockedNames).map(({ category, name, amount, checked }) => ({ category, name, amount, checked }));
+          const dedupedItems = Array.from(new Map(groceryItems.map((g) => [`${g.category}::${g.name}`, g])).values());
+          const items = remoteGroceries.length ? remoteGroceries : await seedGroceries(userId, weekStart, dedupedItems);
           setGroceries(items.map((item) => ({ id: String(item.id), category: item.category, name: item.name, amount: item.amount, checked: item.checked })));
           if (isWeeklyWeightDue(logs)) setWeightModal(true);
         })
