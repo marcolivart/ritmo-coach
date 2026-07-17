@@ -47,3 +47,18 @@ export type DatabaseGroceryItem = {
   checked: boolean;
   created_at?: string;
 };
+
+export type DatabaseExcludedMeal = {
+  id: number;
+  user_id: string;
+  meal_key: string;
+  created_at?: string;
+};
+
+export type DatabaseMealCompletion = {
+  id: number;
+  user_id: string;
+  completed_date: string;
+  meal_type: string;
+  created_at?: string;
+};

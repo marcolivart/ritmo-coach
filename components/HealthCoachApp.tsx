@@ -37,14 +37,20 @@ import {
   Wheat,
   X,
 } from "lucide-react";
-import type { FoodPreference, Profile, WeightLog } from "../src/types";
+import type { DatabaseExcludedMeal, DatabaseMealCompletion, FoodPreference, Profile, WeightLog } from "../src/types";
 import {
+  addExcludedMeal,
   addFoodPreference as addFoodPreferenceRecord,
+  addMealCompletion,
+  getExcludedMeals,
   getExerciseSetsInRange,
   getFoodPreferences,
   getGroceries,
+  getMealCompletions,
   getWeightLogs,
+  removeExcludedMeal,
   removeFoodPreference,
+  removeMealCompletion,
   resetUserData,
   saveExerciseSet,
   saveProfile,
@@ -52,35 +58,14 @@ import {
   seedGroceries,
   setGroceryChecked,
 } from "../src/lib/database";
+import { buildGroceryListFromWeek, type GroceryItem } from "../src/lib/groceries";
+import { calculateDailyTotals, mealKey, personalizeWeek, week, type DayPlan, type Meal } from "../src/lib/menu";
 import { estimateDailyCalories, estimateDailyProtein, formatWeighingDay, mondayISO, weighInStreakWeeks } from "../src/lib/nutrition";
 import { distinctTrainingDays, strengthTrendPercent, weeksAgoMondayISO, type ExerciseSetRecord } from "../src/lib/stats";
 
 import type { Tab } from "../src/lib/routes";
 type FoodView = "week" | "shopping" | "preferences";
 type TrainingView = "overview" | "guide";
-
-type Meal = {
-  type: string;
-  name: string;
-  calories: number;
-  protein: number;
-  ingredients: string[];
-  alternative: string;
-};
-
-type DayPlan = {
-  short: string;
-  date: number;
-  meals: Meal[];
-};
-
-type GroceryItem = {
-  id: string;
-  category: string;
-  name: string;
-  amount: string;
-  checked: boolean;
-};
 
 type WorkoutExercise = {
   name: string;
@@ -97,96 +82,6 @@ type WorkoutExercise = {
   technique: string[];
   mistakes: { title: string; detail: string }[];
 };
-
-const week: DayPlan[] = [
-  {
-    short: "Lun",
-    date: 14,
-    meals: [
-      { type: "Desayuno", name: "Tostadas de pavo y tomate", calories: 430, protein: 29, ingredients: ["70 g pan integral", "90 g pavo", "120 g tomate", "8 g aceite de oliva"], alternative: "60 g de avena, 250 ml de leche y 1 plátano" },
-      { type: "Comida", name: "Arroz con pollo y verduras", calories: 685, protein: 52, ingredients: ["95 g arroz en crudo", "180 g pollo", "220 g verduras", "10 g aceite de oliva"], alternative: "100 g pasta en crudo y 180 g pavo" },
-      { type: "Merienda", name: "Yogur, plátano y avena", calories: 285, protein: 17, ingredients: ["200 g yogur alto en proteína", "1 plátano", "20 g avena"], alternative: "200 g queso fresco batido y 1 manzana" },
-      { type: "Cena", name: "Merluza con patata al horno", calories: 565, protein: 46, ingredients: ["210 g merluza", "320 g patata", "150 g ensalada", "10 g aceite de oliva"], alternative: "190 g salmón y 250 g patata" },
-    ],
-  },
-  {
-    short: "Mar",
-    date: 15,
-    meals: [
-      { type: "Desayuno", name: "Avena cremosa con plátano", calories: 445, protein: 24, ingredients: ["65 g avena", "250 ml leche", "1 plátano", "15 g crema de cacahuete"], alternative: "70 g pan integral, 2 huevos y fruta" },
-      { type: "Comida", name: "Pasta boloñesa ligera", calories: 710, protein: 48, ingredients: ["105 g pasta en crudo", "160 g ternera magra", "150 g tomate triturado", "8 g aceite"], alternative: "95 g arroz y 180 g pollo" },
-      { type: "Merienda", name: "Bocadillo rápido de pavo", calories: 300, protein: 23, ingredients: ["70 g pan", "90 g pavo", "tomate"], alternative: "Yogur proteico, fruta y 15 g de nueces" },
-      { type: "Cena", name: "Tortilla y ensalada completa", calories: 510, protein: 40, ingredients: ["3 huevos", "180 g claras", "200 g ensalada", "60 g pan"], alternative: "200 g pollo, verduras y 50 g pan" },
-    ],
-  },
-  {
-    short: "Mié",
-    date: 16,
-    meals: [
-      { type: "Desayuno", name: "Tostada de huevos revueltos", calories: 425, protein: 30, ingredients: ["70 g pan integral", "2 huevos", "120 g claras", "1 naranja"], alternative: "Avena con yogur y fruta" },
-      { type: "Comida", name: "Patata, pavo y verduras", calories: 660, protein: 51, ingredients: ["380 g patata", "190 g pavo", "220 g verduras", "10 g aceite"], alternative: "95 g arroz y 180 g pollo" },
-      { type: "Merienda", name: "Queso fresco y manzana", calories: 260, protein: 22, ingredients: ["250 g queso fresco batido", "1 manzana", "10 g miel"], alternative: "Yogur alto en proteína y plátano" },
-      { type: "Cena", name: "Salmón, arroz y calabacín", calories: 625, protein: 41, ingredients: ["185 g salmón", "65 g arroz en crudo", "220 g calabacín"], alternative: "210 g merluza, 300 g patata y verduras" },
-    ],
-  },
-  {
-    short: "Jue",
-    date: 17,
-    meals: [
-      { type: "Desayuno", name: "Yogur bowl de avena y fruta", calories: 420, protein: 27, ingredients: ["250 g yogur", "55 g avena", "150 g fruta", "10 g miel"], alternative: "Tostadas de pavo y tomate" },
-      { type: "Comida", name: "Burrito bowl de pollo", calories: 705, protein: 54, ingredients: ["90 g arroz", "180 g pollo", "100 g maíz", "150 g verduras", "1 tortilla pequeña"], alternative: "Pasta con pavo y tomate" },
-      { type: "Merienda", name: "Batido de plátano", calories: 290, protein: 24, ingredients: ["250 ml leche", "1 plátano", "25 g proteína", "10 g avena"], alternative: "Yogur proteico con fruta" },
-      { type: "Cena", name: "Hamburguesa casera completa", calories: 570, protein: 45, ingredients: ["180 g ternera magra", "80 g pan", "tomate y lechuga", "220 g patata"], alternative: "200 g pollo con patata y ensalada" },
-    ],
-  },
-  {
-    short: "Vie",
-    date: 18,
-    meals: [
-      { type: "Desayuno", name: "Sándwich caliente de pavo", calories: 435, protein: 32, ingredients: ["90 g pan", "100 g pavo", "30 g queso", "1 fruta"], alternative: "Avena con plátano" },
-      { type: "Comida", name: "Arroz mediterráneo con atún", calories: 670, protein: 47, ingredients: ["95 g arroz", "160 g atún natural", "200 g verduras", "10 g aceite"], alternative: "180 g pollo si se bloquea el atún" },
-      { type: "Merienda", name: "Yogur con fruta y cereal", calories: 275, protein: 18, ingredients: ["200 g yogur", "1 fruta", "25 g cereal"], alternative: "Bocadillo pequeño de pavo" },
-      { type: "Cena", name: "Pizza casera proteica", calories: 615, protein: 50, ingredients: ["1 base integral", "150 g pollo", "80 g mozzarella ligera", "tomate"], alternative: "Tortilla con pan y ensalada" },
-    ],
-  },
-  {
-    short: "Sáb",
-    date: 19,
-    meals: [
-      { type: "Desayuno", name: "Tortitas de avena", calories: 465, protein: 30, ingredients: ["65 g avena", "2 huevos", "120 g claras", "1 plátano"], alternative: "Tostadas con pavo" },
-      { type: "Comida", name: "Pasta con pollo y pesto ligero", calories: 725, protein: 52, ingredients: ["105 g pasta", "180 g pollo", "20 g pesto", "150 g tomate"], alternative: "Arroz con pavo" },
-      { type: "Merienda", name: "Merienda flexible medida", calories: 310, protein: 20, ingredients: ["1 yogur", "1 fruta", "30 g chocolate 85%"], alternative: "Bocadillo de pavo" },
-      { type: "Cena", name: "Cena social controlada", calories: 610, protein: 38, ingredients: ["1 plato principal proteico", "1 ración de carbohidrato", "verduras", "agua o bebida zero"], alternative: "Hamburguesa casera con patata" },
-    ],
-  },
-  {
-    short: "Dom",
-    date: 20,
-    meals: [
-      { type: "Desayuno", name: "Desayuno favorito equilibrado", calories: 440, protein: 27, ingredients: ["70 g pan", "2 huevos", "80 g pavo", "1 fruta"], alternative: "Avena con yogur" },
-      { type: "Comida", name: "Paella de pollo medida", calories: 720, protein: 49, ingredients: ["105 g arroz", "180 g pollo", "200 g verduras", "10 g aceite"], alternative: "Pasta boloñesa ligera" },
-      { type: "Merienda", name: "Yogur y fruta", calories: 245, protein: 18, ingredients: ["200 g yogur", "1 fruta", "10 g miel"], alternative: "Queso fresco batido" },
-      { type: "Cena", name: "Crema de verduras y tortilla", calories: 535, protein: 41, ingredients: ["350 g crema de verduras", "3 huevos", "120 g claras", "60 g pan"], alternative: "Merluza con patata" },
-    ],
-  },
-];
-
-const initialGroceries: GroceryItem[] = [
-  { id: "g1", category: "Proteínas", name: "Pechuga de pollo", amount: "1,25 kg", checked: false },
-  { id: "g2", category: "Proteínas", name: "Pavo", amount: "850 g", checked: false },
-  { id: "g3", category: "Proteínas", name: "Merluza", amount: "420 g", checked: false },
-  { id: "g4", category: "Proteínas", name: "Salmón", amount: "370 g", checked: false },
-  { id: "g5", category: "Proteínas", name: "Huevos", amount: "18 unidades", checked: true },
-  { id: "g6", category: "Carbohidratos", name: "Arroz", amount: "720 g", checked: false },
-  { id: "g7", category: "Carbohidratos", name: "Pasta", amount: "520 g", checked: false },
-  { id: "g8", category: "Carbohidratos", name: "Patatas", amount: "2,4 kg", checked: false },
-  { id: "g9", category: "Carbohidratos", name: "Pan integral", amount: "2 paquetes", checked: true },
-  { id: "g10", category: "Fruta y verdura", name: "Plátanos", amount: "8 unidades", checked: false },
-  { id: "g11", category: "Fruta y verdura", name: "Verdura variada", amount: "2,2 kg", checked: false },
-  { id: "g12", category: "Fruta y verdura", name: "Tomate", amount: "1,2 kg", checked: false },
-  { id: "g13", category: "Lácteos", name: "Yogur alto en proteína", amount: "12 unidades", checked: false },
-  { id: "g14", category: "Lácteos", name: "Leche", amount: "2 litros", checked: false },
-];
 
 const exercises: WorkoutExercise[] = [
   {
@@ -239,13 +134,6 @@ const mealIcon = (type: string) => {
   return <Utensils size={21} />;
 };
 
-function calculateDailyTotals(day: DayPlan) {
-  return day.meals.reduce(
-    (total, meal) => ({ calories: total.calories + meal.calories, protein: total.protein + meal.protein }),
-    { calories: 0, protein: 0 },
-  );
-}
-
 type HealthCoachAppProps = {
   userId?: string;
   profile?: Profile | null;
@@ -261,45 +149,11 @@ const demoProfile: Profile = {
   meal_count: 4, onboarding_completed: true,
 };
 
-function scaleIngredient(value: string, factor: number) {
-  return value.replace(/^(\d+(?:[.,]\d+)?)\s*(g|ml)\b/i, (_match, raw, unit) => {
-    const amount = Number(String(raw).replace(",", "."));
-    const rounded = Math.max(5, Math.round((amount * factor) / 5) * 5);
-    return `${rounded} ${unit}`;
-  });
-}
+const shortDayNames: Record<string, string> = { Lun: "Lunes", Mar: "Martes", Mié: "Miércoles", Jue: "Jueves", Vie: "Viernes", Sáb: "Sábado", Dom: "Domingo" };
 
-function personalizeWeek(profile: Profile): DayPlan[] {
-  const target = estimateDailyCalories(profile);
-  const monday = new Date(`${mondayISO()}T12:00:00`);
-  return week.map((day, dayIndex) => {
-    const baseTotal = calculateDailyTotals(day).calories;
-    const factor = Math.max(.72, Math.min(1.35, target / baseTotal));
-    const date = new Date(monday);
-    date.setDate(monday.getDate() + dayIndex);
-    return {
-      ...day,
-      date: date.getDate(),
-      meals: day.meals.map((meal) => ({
-        ...meal,
-        calories: Math.round(meal.calories * factor),
-        protein: Math.round(meal.protein * Math.min(1.18, Math.max(.88, factor))),
-        ingredients: meal.ingredients.map((ingredient) => scaleIngredient(ingredient, factor)),
-      })),
-    };
-  });
-}
-
-function personalizeGroceries(profile: Profile): GroceryItem[] {
-  const factor = Math.max(.72, Math.min(1.35, estimateDailyCalories(profile) / 2000));
-  return initialGroceries.map((item) => ({
-    ...item,
-    amount: item.amount.replace(/(\d+(?:[.,]\d+)?)\s*(kg|g|litros?)/i, (_match, raw, unit) => {
-      const value = Number(String(raw).replace(",", "."));
-      const scaled = unit.toLowerCase() === "g" ? Math.round((value * factor) / 10) * 10 : Math.round(value * factor * 10) / 10;
-      return `${String(scaled).replace(".", ",")} ${unit}`;
-    }),
-  }));
+function formatMealKeyLabel(key: string): string {
+  const [short, type] = key.split("-");
+  return `${shortDayNames[short] ?? short} · ${type ?? ""}`;
 }
 
 function isWeeklyWeightDue(logs: WeightLog[]): boolean {
@@ -316,7 +170,7 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
   const [weightModal, setWeightModal] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
-  const [mealModal, setMealModal] = useState<Meal | null>(null);
+  const [mealModal, setMealModal] = useState<{ meal: Meal; day: DayPlan } | null>(null);
   const effectiveProfile = profile ?? demoProfile;
   const [newWeight, setNewWeight] = useState(String(effectiveProfile.current_weight_kg));
   const [currentWeight, setCurrentWeight] = useState(effectiveProfile.current_weight_kg);
@@ -328,7 +182,10 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
   const [foodInput, setFoodInput] = useState("");
   const [favoriteInput, setFavoriteInput] = useState("");
   const [allergyInput, setAllergyInput] = useState("");
-  const [groceries, setGroceries] = useState(() => personalizeGroceries(effectiveProfile));
+  const [excludedMealKeys, setExcludedMealKeys] = useState<Set<string>>(new Set());
+  const [excludedMealRecords, setExcludedMealRecords] = useState<DatabaseExcludedMeal[]>([]);
+  const [completions, setCompletions] = useState<Set<string>>(new Set());
+  const [groceries, setGroceries] = useState(() => buildGroceryListFromWeek(personalizeWeek(effectiveProfile, new Set(), blockedFoods), blockedFoods));
   const [syncing, setSyncing] = useState(false);
   const [profileModal, setProfileModal] = useState(false);
   const [profileDraft, setProfileDraft] = useState<Profile>(effectiveProfile);
@@ -351,21 +208,32 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
     if (userId) {
       setSyncing(true);
       const weekStart = mondayISO();
+      const weekEndDate = new Date(`${weekStart}T12:00:00`);
+      weekEndDate.setDate(weekEndDate.getDate() + 6);
+      const weekEnd = weekEndDate.toISOString().slice(0, 10);
       const rangeStart = weeksAgoMondayISO(5); // 6 semanas completas, incluida la actual
       Promise.all([
         getFoodPreferences(userId),
         getWeightLogs(userId),
         getGroceries(userId, weekStart),
         getExerciseSetsInRange(userId, `${rangeStart}T00:00:00`, `${new Date().toISOString().slice(0, 10)}T23:59:59`),
+        getExcludedMeals(userId),
+        getMealCompletions(userId, weekStart, weekEnd),
       ])
-        .then(async ([preferences, logs, remoteGroceries, exerciseSets]) => {
+        .then(async ([preferences, logs, remoteGroceries, exerciseSets, excludedMeals, mealCompletions]) => {
           setPreferenceRecords(preferences);
-          setBlockedFoods(preferences.filter((item) => item.restriction_type === "blocked").map((item) => item.food_name));
+          const blockedNames = preferences.filter((item) => item.restriction_type === "blocked").map((item) => item.food_name);
+          setBlockedFoods(blockedNames);
           setFavoriteFoods(preferences.filter((item) => item.restriction_type === "favorite").map((item) => item.food_name));
           setAllergies(preferences.filter((item) => item.restriction_type === "allergy").map((item) => item.food_name));
           setWeightLogs(logs);
           setRecentExerciseSets(exerciseSets);
-          const items = remoteGroceries.length ? remoteGroceries : await seedGroceries(userId, weekStart, personalizeGroceries(effectiveProfile).map(({ category, name, amount, checked }) => ({ category, name, amount, checked })));
+          setExcludedMealRecords(excludedMeals);
+          const excludedKeysSet = new Set(excludedMeals.map((item) => item.meal_key));
+          setExcludedMealKeys(excludedKeysSet);
+          setCompletions(new Set(mealCompletions.map((item) => `${item.completed_date}-${item.meal_type}`)));
+          const personalized = personalizeWeek(effectiveProfile, excludedKeysSet, blockedNames);
+          const items = remoteGroceries.length ? remoteGroceries : await seedGroceries(userId, weekStart, buildGroceryListFromWeek(personalized, blockedNames).map(({ category, name, amount, checked }) => ({ category, name, amount, checked })));
           setGroceries(items.map((item) => ({ id: String(item.id), category: item.category, name: item.name, amount: item.amount, checked: item.checked })));
           if (isWeeklyWeightDue(logs)) setWeightModal(true);
         })
@@ -377,21 +245,26 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
     try {
       const saved = localStorage.getItem("ritmo-prototype");
       if (!saved) return;
-      const data = JSON.parse(saved) as { currentWeight?: number; blockedFoods?: string[]; favoriteFoods?: string[]; allergies?: string[]; groceries?: GroceryItem[] };
+      const data = JSON.parse(saved) as { currentWeight?: number; blockedFoods?: string[]; favoriteFoods?: string[]; allergies?: string[]; groceries?: GroceryItem[]; excludedMealKeys?: string[]; completions?: string[] };
       if (data.currentWeight) setCurrentWeight(data.currentWeight);
       if (data.blockedFoods) setBlockedFoods(data.blockedFoods);
       if (data.favoriteFoods) setFavoriteFoods(data.favoriteFoods);
       if (data.allergies) setAllergies(data.allergies);
       if (data.groceries) setGroceries(data.groceries);
+      if (data.excludedMealKeys) setExcludedMealKeys(new Set(data.excludedMealKeys));
+      if (data.completions) setCompletions(new Set(data.completions));
     } catch { /* El modo demo sigue funcionando. */ }
   }, [userId]);
 
   useEffect(() => {
     if (userId) return;
     try {
-      localStorage.setItem("ritmo-prototype", JSON.stringify({ currentWeight, blockedFoods, favoriteFoods, allergies, groceries }));
+      localStorage.setItem("ritmo-prototype", JSON.stringify({
+        currentWeight, blockedFoods, favoriteFoods, allergies, groceries,
+        excludedMealKeys: Array.from(excludedMealKeys), completions: Array.from(completions),
+      }));
     } catch { /* Algunos entornos bloquean localStorage. */ }
-  }, [userId, currentWeight, blockedFoods, favoriteFoods, allergies, groceries]);
+  }, [userId, currentWeight, blockedFoods, favoriteFoods, allergies, groceries, excludedMealKeys, completions]);
 
   useEffect(() => {
     if (!toast) return;
@@ -400,12 +273,20 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
   }, [toast]);
 
   const currentProfile = useMemo(() => ({ ...effectiveProfile, current_weight_kg: currentWeight }), [effectiveProfile, currentWeight]);
-  const personalizedWeek = useMemo(() => personalizeWeek(currentProfile), [currentProfile]);
+  const personalizedWeek = useMemo(() => personalizeWeek(currentProfile, excludedMealKeys, blockedFoods), [currentProfile, excludedMealKeys, blockedFoods]);
   const selectedPlan = personalizedWeek[selectedDay];
   const totals = useMemo(() => calculateDailyTotals(selectedPlan), [selectedPlan]);
   const estimatedCalories = estimateDailyCalories(currentProfile);
   const estimatedProtein = estimateDailyProtein(currentProfile);
   const weightDue = isWeeklyWeightDue(weightLogs);
+  const macroFactor = estimatedCalories / 2000;
+  // La compra ya se genera sin los alimentos bloqueados, pero si se bloquea algo
+  // después de haber sembrado la lista de esta semana, se filtra también aquí en caliente.
+  const visibleGroceries = useMemo(() => {
+    const blockedLower = blockedFoods.map((food) => food.toLowerCase());
+    if (!blockedLower.length) return groceries;
+    return groceries.filter((item) => !blockedLower.some((food) => item.name.toLowerCase().includes(food)));
+  }, [groceries, blockedFoods]);
 
   // --- Datos reales para los widgets/anillos de "Hoy" y las stats de "Progreso" ---
   const weekExerciseSets = useMemo(() => {
@@ -448,7 +329,7 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
   const rings = {
     workout: Math.min(1, totalSetsPerWorkout > 0 ? setsCompletedToday / totalSetsPerWorkout : 0),
   };
-  const checkedGroceries = groceries.filter((item) => item.checked).length;
+  const checkedGroceries = visibleGroceries.filter((item) => item.checked).length;
 
   const saveWeight = async () => {
     const parsed = Number(newWeight.replace(",", "."));
@@ -510,6 +391,64 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
     }
   };
 
+  const excludeMeal = async (day: { short: string }, meal: { type: string }) => {
+    const key = mealKey(day, meal);
+    if (excludedMealKeys.has(key)) return;
+    setExcludedMealKeys((keys) => new Set(keys).add(key));
+    try {
+      if (userId) {
+        const record = await addExcludedMeal(userId, key);
+        setExcludedMealRecords((items) => [...items, record]);
+      }
+    } catch (caught) {
+      setExcludedMealKeys((keys) => { const next = new Set(keys); next.delete(key); return next; });
+      setToast(caught instanceof Error ? caught.message : "No se ha podido excluir la comida");
+    }
+  };
+
+  const removeExcludedMealKey = async (key: string) => {
+    setExcludedMealKeys((keys) => { const next = new Set(keys); next.delete(key); return next; });
+    try {
+      const record = excludedMealRecords.find((item) => item.meal_key === key);
+      if (userId && record) await removeExcludedMeal(record.id);
+      setExcludedMealRecords((items) => items.filter((item) => item.meal_key !== key));
+    } catch (caught) {
+      setExcludedMealKeys((keys) => new Set(keys).add(key));
+      setToast(caught instanceof Error ? caught.message : "No se ha podido recuperar la comida");
+    }
+  };
+
+  const regenerateDay = async (dayIndex: number) => {
+    const baseDay = week[dayIndex];
+    if (!baseDay) return;
+    await Promise.all(baseDay.meals.map((meal) => excludeMeal(baseDay, meal)));
+    setToast("Día regenerado respetando tus bloqueos");
+  };
+
+  const toggleMealDone = async (dateISO: string, type: string) => {
+    const key = `${dateISO}-${type}`;
+    const wasDone = completions.has(key);
+    setCompletions((keys) => {
+      const next = new Set(keys);
+      if (wasDone) next.delete(key); else next.add(key);
+      return next;
+    });
+    try {
+      if (userId) {
+        if (wasDone) await removeMealCompletion(userId, dateISO, type);
+        else await addMealCompletion(userId, dateISO, type);
+      }
+      setToast(wasDone ? "Comida desmarcada" : "Comida marcada como realizada");
+    } catch (caught) {
+      setCompletions((keys) => {
+        const next = new Set(keys);
+        if (wasDone) next.add(key); else next.delete(key);
+        return next;
+      });
+      setToast(caught instanceof Error ? caught.message : "No se ha podido guardar");
+    }
+  };
+
   const updateSet = (index: number, field: "kg" | "reps", value: string) => {
     setSetData((sets) => sets.map((set, i) => (i === index ? { ...set, [field]: value } : set)));
   };
@@ -567,18 +506,23 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
 
   const exportPDF = () => {
     if (userId && weightDue) { setWeightModal(true); setToast("Registra el pesaje semanal antes de generar el nuevo PDF"); return; }
-    const daysHtml = personalizedWeek.map((day) => {
-      const meals = day.meals.map((meal) => `
+    const daysHtml = personalizedWeek.map((day, dayIndex) => {
+      const baseDay = week[dayIndex];
+      const meals = day.meals.map((meal) => {
+        const baseMeal = baseDay?.meals.find((item) => item.type === meal.type);
+        const isSwapped = baseMeal && baseMeal.name !== meal.name;
+        return `
         <section class="meal">
-          <h3>${meal.type}: ${meal.name}</h3>
+          <h3>${meal.type}: ${meal.name}${isSwapped ? " (alternativa)" : ""}</h3>
           <p>${meal.ingredients.join(" · ")}</p>
           <p class="alt"><strong>Alternativa:</strong> ${meal.alternative}</p>
-        </section>`).join("");
+        </section>`;
+      }).join("");
       return `<article class="day"><h2>${day.short.toUpperCase()} ${day.date}</h2>${meals}</article>`;
     }).join("");
 
-    const groceryHtml = Array.from(new Set(groceries.map((item) => item.category))).map((category) => `
-      <section class="grocery-category"><h2>${category}</h2>${groceries.filter((item) => item.category === category).map((item) => `<div class="grocery"><span>□ ${item.name}</span><strong>${item.amount}</strong></div>`).join("")}</section>
+    const groceryHtml = Array.from(new Set(visibleGroceries.map((item) => item.category))).map((category) => `
+      <section class="grocery-category"><h2>${category}</h2>${visibleGroceries.filter((item) => item.category === category).map((item) => `<div class="grocery"><span>□ ${item.name}</span><strong>${item.amount}</strong></div>`).join("")}</section>
     `).join("");
 
     const printable = window.open("", "_blank", "width=900,height=1100");
@@ -712,7 +656,7 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
         const todayPlan = personalizedWeek[todayIndex];
         const nextMeal = todayPlan.meals[1] ?? todayPlan.meals[0];
         return (
-          <button className="plan-card plan-card-next" onClick={() => setMealModal(nextMeal)}>
+          <button className="plan-card plan-card-next" onClick={() => setMealModal({ meal: nextMeal, day: todayPlan })}>
             <div className="plan-card-icon"><Clock3 size={20} /></div>
             <div className="plan-card-body">
               <div className="plan-card-title">{nextMeal.type}</div>
@@ -782,27 +726,30 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
             </div>
             <div className="macro-grid">
               <div className="macro"><div className="macro-value">{totals.protein} g</div><div className="macro-label">Proteína</div></div>
-              <div className="macro"><div className="macro-value">220 g</div><div className="macro-label">Carbohidratos</div></div>
-              <div className="macro"><div className="macro-value">62 g</div><div className="macro-label">Grasas</div></div>
+              <div className="macro"><div className="macro-value">{Math.round(220 * macroFactor)} g</div><div className="macro-label">Carbohidratos</div></div>
+              <div className="macro"><div className="macro-value">{Math.round(62 * macroFactor)} g</div><div className="macro-label">Grasas</div></div>
             </div>
           </div>
 
           <div className="section-header">
             <h2 className="section-title">Menú del {selectedPlan.short.toLowerCase()}</h2>
-            <button className="text-button" onClick={() => setToast("Día regenerado respetando tus bloqueos")}>Regenerar</button>
+            <button className="text-button" onClick={() => void regenerateDay(selectedDay)}>Regenerar</button>
           </div>
           <div className="card">
-            {selectedPlan.meals.map((meal) => (
-              <div className="meal-row" key={`${selectedPlan.short}-${meal.type}`}>
-                <div className="meal-icon">{mealIcon(meal.type)}</div>
-                <div className="meal-copy">
-                  <div className="meal-kicker">{meal.type}</div>
-                  <div className="meal-name">{meal.name}</div>
-                  <div className="meal-meta">{meal.calories} kcal · {meal.protein} g proteína</div>
+            {selectedPlan.meals.map((meal) => {
+              const done = completions.has(`${selectedPlan.dateISO}-${meal.type}`);
+              return (
+                <div className="meal-row" key={`${selectedPlan.short}-${meal.type}`}>
+                  <div className="meal-icon">{done ? <Check size={21} /> : mealIcon(meal.type)}</div>
+                  <div className="meal-copy">
+                    <div className="meal-kicker">{meal.type}</div>
+                    <div className="meal-name">{meal.name}</div>
+                    <div className="meal-meta">{meal.calories} kcal · {meal.protein} g proteína{done ? " · hecha" : ""}</div>
+                  </div>
+                  <button className="chevron-button" onClick={() => setMealModal({ meal, day: selectedPlan })}><ChevronRight size={17} /></button>
                 </div>
-                <button className="chevron-button" onClick={() => setMealModal(meal)}><ChevronRight size={17} /></button>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <button className="primary-button full" style={{ marginTop: 14 }} onClick={exportPDF}><FileDown size={18} /> Descargar semana en PDF</button>
@@ -816,16 +763,16 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
               <span className="pill pill-light"><ShoppingBasket size={14} /> Lista automática</span>
               <PackageCheck size={22} />
             </div>
-            <div style={{ fontSize: 31, fontWeight: 870, letterSpacing: -1.1, marginTop: 19, position: "relative", zIndex: 1 }}>{checkedGroceries}/{groceries.length}</div>
+            <div style={{ fontSize: 31, fontWeight: 870, letterSpacing: -1.1, marginTop: 19, position: "relative", zIndex: 1 }}>{checkedGroceries}/{visibleGroceries.length}</div>
             <div style={{ fontSize: 12, opacity: .68, marginTop: 3, position: "relative", zIndex: 1 }}>productos ya están en tu cesta</div>
-            <div className="progress-track"><div className="progress-fill" style={{ width: `${(checkedGroceries / groceries.length) * 100}%` }} /></div>
+            <div className="progress-track"><div className="progress-fill" style={{ width: `${visibleGroceries.length ? (checkedGroceries / visibleGroceries.length) * 100 : 0}%` }} /></div>
           </div>
 
-          {Array.from(new Set(groceries.map((item) => item.category))).map((category) => (
+          {Array.from(new Set(visibleGroceries.map((item) => item.category))).map((category) => (
             <div key={category}>
               <div className="section-header"><h2 className="section-title">{category}</h2></div>
               <div className="card">
-                {groceries.filter((item) => item.category === category).map((item) => (
+                {visibleGroceries.filter((item) => item.category === category).map((item) => (
                   <div key={item.id} className={`grocery-row ${item.checked ? "done" : ""}`} onClick={() => toggleGrocery(item.id)}>
                     <div className={`checkbox ${item.checked ? "checked" : ""}`}>{item.checked && <Check size={15} />}</div>
                     <div className="grocery-main"><div className="grocery-name">{item.name}</div><div className="grocery-amount">{item.amount}</div></div>
@@ -864,6 +811,21 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
               <button className="primary-button" onClick={addBlockedFood}><Plus size={18} /></button>
             </div>
           </div>
+
+          {excludedMealKeys.size > 0 && (
+            <>
+              <div className="section-header"><h2 className="section-title">Comidas excluidas</h2><span className="pill pill-orange">{excludedMealKeys.size}</span></div>
+              <div className="card">
+                <div className="tag-list">
+                  {Array.from(excludedMealKeys).map((key) => (
+                    <button key={key} className="food-tag blocked" onClick={() => void removeExcludedMealKey(key)}>
+                      <Ban size={14} /> {formatMealKeyLabel(key)} <X size={13} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
 
           <div className="section-header"><h2 className="section-title">Tus favoritos</h2></div>
           <div className="card">
@@ -1194,20 +1156,20 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
           <div className="modal-backdrop" onClick={() => setMealModal(null)}>
             <div className="modal-sheet" onClick={(event) => event.stopPropagation()}>
               <div className="sheet-handle" />
-              <span className="pill pill-green"><Utensils size={13} /> {mealModal.type}</span>
-              <h2 className="modal-title" style={{ marginTop: 13 }}>{mealModal.name}</h2>
-              <p className="modal-subtitle">{mealModal.calories} kcal · {mealModal.protein} g de proteína · cantidades calculadas para tu objetivo.</p>
+              <span className="pill pill-green"><Utensils size={13} /> {mealModal.meal.type}</span>
+              <h2 className="modal-title" style={{ marginTop: 13 }}>{mealModal.meal.name}</h2>
+              <p className="modal-subtitle">{mealModal.meal.calories} kcal · {mealModal.meal.protein} g de proteína · cantidades calculadas para tu objetivo.</p>
               <div className="card">
                 <div className="food-category-title">Ingredientes</div>
-                {mealModal.ingredients.map((ingredient) => (
+                {mealModal.meal.ingredients.map((ingredient) => (
                   <div className="grocery-row" key={ingredient}><div className="checkbox checked"><Check size={14} /></div><div className="grocery-name">{ingredient}</div></div>
                 ))}
               </div>
               <div className="section-header"><h3 className="section-title">Alternativa equivalente</h3></div>
-              <div className="card card-lime"><div style={{ fontSize: 14, fontWeight: 830 }}>{mealModal.alternative}</div><div style={{ fontSize: 11, opacity: .7, marginTop: 5 }}>Ajustada para mantener aproximadamente energía y proteína.</div></div>
+              <div className="card card-lime"><div style={{ fontSize: 14, fontWeight: 830 }}>{mealModal.meal.alternative}</div><div style={{ fontSize: 11, opacity: .7, marginTop: 5 }}>Ajustada para mantener aproximadamente energía y proteína.</div></div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9, marginTop: 14 }}>
-                <button className="secondary-button" onClick={() => { setToast("Receta marcada para no repetir"); setMealModal(null); }}><Ban size={17} /> No repetir</button>
-                <button className="primary-button green" onClick={() => { setToast("Comida marcada como realizada"); setMealModal(null); }}><Check size={17} /> Hecho</button>
+                <button className="secondary-button" onClick={() => { void excludeMeal(mealModal.day, mealModal.meal); setMealModal(null); }}><Ban size={17} /> No repetir</button>
+                <button className="primary-button green" onClick={() => { void toggleMealDone(mealModal.day.dateISO, mealModal.meal.type); setMealModal(null); }}><Check size={17} /> {completions.has(`${mealModal.day.dateISO}-${mealModal.meal.type}`) ? "Deshacer" : "Hecho"}</button>
               </div>
             </div>
           </div>

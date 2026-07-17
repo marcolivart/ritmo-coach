@@ -1,6 +1,8 @@
 import { supabase } from "./supabase";
 import type {
+  DatabaseExcludedMeal,
   DatabaseGroceryItem,
+  DatabaseMealCompletion,
   FoodPreference,
   FoodPreferenceType,
   Profile,
@@ -117,6 +119,65 @@ export async function setGroceryChecked(id: number, checked: boolean): Promise<v
   raise(error);
 }
 
+export async function getExcludedMeals(userId: string): Promise<DatabaseExcludedMeal[]> {
+  const { data, error } = await client()
+    .from("excluded_meals")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: true });
+  raise(error);
+  return (data ?? []) as DatabaseExcludedMeal[];
+}
+
+export async function addExcludedMeal(userId: string, mealKey: string): Promise<DatabaseExcludedMeal> {
+  const { data, error } = await client()
+    .from("excluded_meals")
+    .upsert({ user_id: userId, meal_key: mealKey }, { onConflict: "user_id,meal_key", ignoreDuplicates: false })
+    .select()
+    .single();
+  raise(error);
+  return data as DatabaseExcludedMeal;
+}
+
+export async function removeExcludedMeal(id: number): Promise<void> {
+  const { error } = await client().from("excluded_meals").delete().eq("id", id);
+  raise(error);
+}
+
+export async function getMealCompletions(userId: string, fromDateISO: string, toDateISO: string): Promise<DatabaseMealCompletion[]> {
+  const { data, error } = await client()
+    .from("meal_completions")
+    .select("*")
+    .eq("user_id", userId)
+    .gte("completed_date", fromDateISO)
+    .lte("completed_date", toDateISO);
+  raise(error);
+  return (data ?? []) as DatabaseMealCompletion[];
+}
+
+export async function addMealCompletion(userId: string, completedDate: string, mealType: string): Promise<DatabaseMealCompletion> {
+  const { data, error } = await client()
+    .from("meal_completions")
+    .upsert(
+      { user_id: userId, completed_date: completedDate, meal_type: mealType },
+      { onConflict: "user_id,completed_date,meal_type", ignoreDuplicates: false },
+    )
+    .select()
+    .single();
+  raise(error);
+  return data as DatabaseMealCompletion;
+}
+
+export async function removeMealCompletion(userId: string, completedDate: string, mealType: string): Promise<void> {
+  const { error } = await client()
+    .from("meal_completions")
+    .delete()
+    .eq("user_id", userId)
+    .eq("completed_date", completedDate)
+    .eq("meal_type", mealType);
+  raise(error);
+}
+
 export async function saveExerciseSet(input: {
   userId: string;
   workoutName: string;
@@ -157,7 +218,7 @@ export async function getExerciseSetsInRange(
  *  y reinicia el perfil a los valores por defecto, como si el usuario
  *  volviera a registrarse. Acción irreversible. */
 export async function resetUserData(userId: string): Promise<Profile> {
-  const tables = ["weight_logs", "exercise_sets", "food_preferences", "grocery_items"] as const;
+  const tables = ["weight_logs", "exercise_sets", "food_preferences", "grocery_items", "excluded_meals", "meal_completions"] as const;
   for (const table of tables) {
     const { error } = await client().from(table).delete().eq("user_id", userId);
     raise(error);
