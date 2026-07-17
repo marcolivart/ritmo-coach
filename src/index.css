@@ -85,7 +85,7 @@ button { -webkit-tap-highlight-color: transparent; }
 /* Cuando hay header fijo, el contenido necesita más padding-top que compense su altura.
    max() garantiza espacio suficiente aunque env(safe-area-inset-top) devuelva 0. */
 .screen-with-header {
-  padding-top: max(72px, calc(56px + env(safe-area-inset-top)));
+  padding-top: max(80px, calc(64px + env(safe-area-inset-top)));
 }
 
 /* V2: transición entre pestañas, estilo iOS */
@@ -234,6 +234,10 @@ button { -webkit-tap-highlight-color: transparent; }
 .day-chip span { font-size:10px; font-weight:700; text-transform:uppercase; }
 .day-chip.active { background:var(--ink); color:white; border-color:var(--ink); transform:translateY(-1px); }
 .day-chip.active strong { color:white; }
+.day-chip { position:relative; }
+.day-chip.today:not(.active) { border-color:var(--green); border-width:1.5px; }
+.day-chip-dot { position:absolute; bottom:8px; width:5px; height:5px; border-radius:50%; background:var(--green); }
+.day-chip.active .day-chip-dot { background:var(--lime); }
 
 .macro-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:13px; }
 .macro { background:rgba(255,255,255,.68); border-radius:17px; padding:11px; }

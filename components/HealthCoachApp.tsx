@@ -312,7 +312,7 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
   const [tab, setTab] = useState<Tab>("today");
   const [foodView, setFoodView] = useState<FoodView>("week");
   const [trainingView, setTrainingView] = useState<TrainingView>("overview");
-  const [selectedDay, setSelectedDay] = useState(0);
+  const [selectedDay, setSelectedDay] = useState(() => (new Date().getDay() + 6) % 7);
   const [weightModal, setWeightModal] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
@@ -635,7 +635,7 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
           ? "Hoy toca sostener el ritmo."
           : kgToGoal < 0.1
             ? "Has llegado a tu objetivo. Toca consolidarlo."
-            : `Te ${kgToGoal.toFixed(1)} kg de tu objetivo. Vamos a por hoy.`}
+            : `Te faltan ${kgToGoal.toFixed(1)} kg para tu objetivo. Vamos a por hoy.`}
       </p>
 
       {/* HÉROE: progreso hacia el objetivo — el dato que importa cada día */}
@@ -655,7 +655,7 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
         </div>
         <div className="hero-goal-foot">
           <span>{startWeightKg.toFixed(1)} kg</span>
-          <span className="hero-goal-foot-pct">{weightProgressPercent}% del camino</span>
+          {weightProgressPercent > 0 && <span className="hero-goal-foot-pct">{weightProgressPercent}% del camino</span>}
           <span>{currentProfile.target_weight_kg} kg</span>
         </div>
       </button>
@@ -698,23 +698,30 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
         <button className="text-button" onClick={() => { setTab("food"); setFoodView("week"); }}>Ver semana</button>
       </div>
 
-      <button className="plan-card plan-card-food" onClick={() => { setTab("food"); setSelectedDay(0); setFoodView("week"); }}>
+      <button className="plan-card plan-card-food" onClick={() => { setTab("food"); setSelectedDay((new Date().getDay() + 6) % 7); setFoodView("week"); }}>
         <div className="plan-card-icon"><Utensils size={20} /></div>
         <div className="plan-card-body">
           <div className="plan-card-title">Comida</div>
-          <div className="plan-card-meta">{estimatedCalories.toLocaleString("es-ES")} kcal · {estimatedProtein} g proteína · {currentProfile.meal_count} tomas</div>
+          <div className="plan-card-meta">{estimatedCalories.toLocaleString("es-ES")} kcal · {estimatedProtein} g proteína · {currentProfile.meal_count} comidas</div>
         </div>
         <ChevronRight size={18} className="plan-card-arrow" />
       </button>
 
-      <button className="plan-card plan-card-next" onClick={() => setMealModal(week[0].meals[1])}>
-        <div className="plan-card-icon"><Clock3 size={20} /></div>
-        <div className="plan-card-body">
-          <div className="plan-card-title">Siguiente comida · 13:30</div>
-          <div className="plan-card-meta">Arroz con pollo y verduras · 685 kcal</div>
-        </div>
-        <ChevronRight size={18} className="plan-card-arrow" />
-      </button>
+      {(() => {
+        const todayIndex = (new Date().getDay() + 6) % 7;
+        const todayPlan = personalizedWeek[todayIndex];
+        const nextMeal = todayPlan.meals[1] ?? todayPlan.meals[0];
+        return (
+          <button className="plan-card plan-card-next" onClick={() => setMealModal(nextMeal)}>
+            <div className="plan-card-icon"><Clock3 size={20} /></div>
+            <div className="plan-card-body">
+              <div className="plan-card-title">{nextMeal.type}</div>
+              <div className="plan-card-meta">{nextMeal.name} · {nextMeal.calories} kcal</div>
+            </div>
+            <ChevronRight size={18} className="plan-card-arrow" />
+          </button>
+        );
+      })()}
 
       {/* MENSAJE DEL COACH */}
       <div className="coach-note">
@@ -752,11 +759,16 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
       {foodView === "week" && (
         <>
           <div className="day-strip">
-            {personalizedWeek.map((day, index) => (
-              <button key={day.short} className={`day-chip ${selectedDay === index ? "active" : ""}`} onClick={() => setSelectedDay(index)}>
-                <span>{day.short}</span><strong>{day.date}</strong>
-              </button>
-            ))}
+            {personalizedWeek.map((day, index) => {
+              const todayIndex = (new Date().getDay() + 6) % 7;
+              const isToday = index === todayIndex;
+              return (
+                <button key={day.short} className={`day-chip ${selectedDay === index ? "active" : ""} ${isToday ? "today" : ""}`} onClick={() => setSelectedDay(index)}>
+                  <span>{day.short}</span><strong>{day.date}</strong>
+                  {isToday && <i className="day-chip-dot" aria-hidden="true" />}
+                </button>
+              );
+            })}
           </div>
 
           <div className="card card-green">
