@@ -2,6 +2,7 @@ export interface ExerciseSetRecord {
   performed_at: string;
   weight_kg: number | null;
   repetitions: number | null;
+  exercise_name: string;
 }
 
 /** Lunes ISO de hace N semanas (0 = lunes de esta semana). */
@@ -29,6 +30,18 @@ export function estimatedOneRepMax(weightKg: number, reps: number): number {
 /** Días distintos (fecha) con al menos una serie registrada. */
 export function distinctTrainingDays(sets: ExerciseSetRecord[]): number {
   return new Set(sets.map((set) => set.performed_at.slice(0, 10))).size;
+}
+
+/** Último peso/reps registrado por nombre de ejercicio, para mostrar
+ *  "última vez" real en vez de un valor fijo en los datos del ejercicio. */
+export function latestSetsByExercise(
+  sets: ExerciseSetRecord[],
+): Record<string, { weightKg: number | null; reps: number | null; date: string }> {
+  const result: Record<string, { weightKg: number | null; reps: number | null; date: string }> = {};
+  for (const set of [...sets].sort((a, b) => a.performed_at.localeCompare(b.performed_at))) {
+    result[set.exercise_name] = { weightKg: set.weight_kg, reps: set.repetitions, date: set.performed_at };
+  }
+  return result;
 }
 
 /** % de cambio en fuerza estimada comparando la primera mitad cronológica de

@@ -61,72 +61,12 @@ import {
 import { buildGroceryListFromWeek, type GroceryItem } from "../src/lib/groceries";
 import { calculateDailyTotals, mealKey, personalizeWeek, week, type DayPlan, type Meal } from "../src/lib/menu";
 import { estimateDailyCalories, estimateDailyProtein, formatWeighingDay, mondayISO, weighInStreakWeeks } from "../src/lib/nutrition";
-import { distinctTrainingDays, strengthTrendPercent, weeksAgoMondayISO, type ExerciseSetRecord } from "../src/lib/stats";
+import { distinctTrainingDays, latestSetsByExercise, strengthTrendPercent, weeksAgoMondayISO, type ExerciseSetRecord } from "../src/lib/stats";
+import { buildAlternativeExercise, parseRestSeconds, weekdayShortNames, weekdaySlotsForTrainingDays, workouts, type WorkoutExercise } from "../src/lib/workouts";
 
 import type { Tab } from "../src/lib/routes";
 type FoodView = "week" | "shopping" | "preferences";
 type TrainingView = "overview" | "guide";
-
-type WorkoutExercise = {
-  name: string;
-  detail: string;
-  muscle: string;
-  previous: string;
-  initialKg: string;
-  target: string;
-  rest: string;
-  videoUrl: string;
-  videoSource: string;
-  videoAuthor: string;
-  videoLicense: string;
-  technique: string[];
-  mistakes: { title: string; detail: string }[];
-};
-
-const exercises: WorkoutExercise[] = [
-  {
-    name: "Press de pecho en máquina", detail: "3 series · 8–12 rep", muscle: "Pecho", previous: "25 kg", initialKg: "25", target: "3 × 8–12 repeticiones", rest: "90 s",
-    videoUrl: "https://upload.wikimedia.org/wikipedia/commons/7/70/Muscle_Strengthening_at_the_Gym_-_Chest_Press.webm",
-    videoSource: "https://commons.wikimedia.org/wiki/File:Muscle_Strengthening_at_the_Gym_-_Chest_Press.webm", videoAuthor: "Centers for Disease Control and Prevention", videoLicense: "Dominio público",
-    technique: ["Ajusta el asiento para que las asas queden a la altura media del pecho.", "Mantén la espalda completamente apoyada y los hombros bajos.", "Empuja de forma controlada sin bloquear los codos.", "Regresa lentamente hasta notar el estiramiento del pecho."],
-    mistakes: [{ title: "Separar la espalda del respaldo", detail: "Reduce el peso antes de compensar con el cuerpo." }, { title: "Mover el peso demasiado rápido", detail: "Controla la vuelta durante unos dos segundos." }],
-  },
-  {
-    name: "Remo inclinado con barra", detail: "3 series · 8–12 rep", muscle: "Espalda", previous: "30 kg", initialKg: "30", target: "3 × 8–12 repeticiones", rest: "90 s",
-    videoUrl: "https://upload.wikimedia.org/wikipedia/commons/b/b2/Bent-over_row_-_exercise_demonstration_video.webm",
-    videoSource: "https://commons.wikimedia.org/wiki/File:Bent-over_row_-_exercise_demonstration_video.webm", videoAuthor: "FitnessScape", videoLicense: "CC BY 3.0",
-    technique: ["Inclina el torso manteniendo la espalda neutra.", "Sujeta la barra ligeramente más abierta que los hombros.", "Lleva los codos hacia atrás y acerca la barra al abdomen.", "Baja la barra sin perder la posición del tronco."],
-    mistakes: [{ title: "Redondear la espalda", detail: "Reduce la carga y mantén el abdomen activo." }, { title: "Usar impulso", detail: "Evita levantarte con cada repetición." }],
-  },
-  {
-    name: "Press de hombros", detail: "3 series · 8–10 rep", muscle: "Hombros", previous: "17,5 kg", initialKg: "17.5", target: "3 × 8–10 repeticiones", rest: "90 s",
-    videoUrl: "https://upload.wikimedia.org/wikipedia/commons/6/69/Shoulder_press_-_exercise_demonstration_video.webm",
-    videoSource: "https://commons.wikimedia.org/wiki/File:Shoulder_press_-_exercise_demonstration_video.webm", videoAuthor: "FitnessScape", videoLicense: "CC BY 3.0",
-    technique: ["Coloca las manos algo más abiertas que los hombros.", "Aprieta abdomen y glúteos antes de empujar.", "Sube el peso sobre la cabeza con una trayectoria estable.", "Baja hasta una posición cómoda sin perder el control."],
-    mistakes: [{ title: "Arquear demasiado la zona lumbar", detail: "Baja el peso y mantén el abdomen firme." }, { title: "Cerrar los codos", detail: "Mantén antebrazos alineados bajo la carga." }],
-  },
-  {
-    name: "Sentadilla con barra", detail: "3 series · 8–10 rep", muscle: "Piernas", previous: "35 kg", initialKg: "35", target: "3 × 8–10 repeticiones", rest: "120 s",
-    videoUrl: "https://upload.wikimedia.org/wikipedia/commons/5/5c/Squat_-_exercise_demonstration_video.webm",
-    videoSource: "https://commons.wikimedia.org/wiki/File:Squat_-_exercise_demonstration_video.webm", videoAuthor: "FitnessScape", videoLicense: "CC BY 3.0",
-    technique: ["Coloca los pies aproximadamente a la anchura de los hombros.", "Respira y crea tensión antes de iniciar la bajada.", "Flexiona cadera y rodillas manteniendo los pies apoyados.", "Empuja el suelo para volver a la posición inicial."],
-    mistakes: [{ title: "Talones levantados", detail: "Reduce la profundidad o revisa la movilidad del tobillo." }, { title: "Rodillas colapsando hacia dentro", detail: "Mantén las rodillas alineadas con los pies." }],
-  },
-  {
-    name: "Peso muerto", detail: "3 series · 6–8 rep", muscle: "Cadena posterior", previous: "45 kg", initialKg: "45", target: "3 × 6–8 repeticiones", rest: "120 s",
-    videoUrl: "https://upload.wikimedia.org/wikipedia/commons/6/62/Deadlift_-_exercise_demonstration_video.webm",
-    videoSource: "https://commons.wikimedia.org/wiki/File:Deadlift_-_exercise_demonstration_video.webm", videoAuthor: "FitnessScape", videoLicense: "CC BY 3.0",
-    technique: ["Sitúa la barra cerca de las espinillas.", "Agarra la barra y fija la espalda en posición neutra.", "Empuja el suelo y mantén la barra cerca del cuerpo.", "Termina erguido sin echar el tronco hacia atrás."],
-    mistakes: [{ title: "Separar la barra del cuerpo", detail: "Mantén la carga pegada a las piernas durante el recorrido." }, { title: "Tirar solo con la espalda", detail: "Inicia el movimiento empujando con las piernas." }],
-  },
-  {
-    name: "Dominadas asistidas", detail: "3 series · 6–10 rep", muscle: "Espalda", previous: "40 kg asistencia", initialKg: "40", target: "3 × 6–10 repeticiones", rest: "90 s",
-    videoUrl: "https://upload.wikimedia.org/wikipedia/commons/1/15/Pull-ups_-_exercise_demonstration_video.webm",
-    videoSource: "https://commons.wikimedia.org/wiki/File:Pull-ups_-_exercise_demonstration_video.webm", videoAuthor: "FitnessScape", videoLicense: "CC BY 3.0",
-    technique: ["Agarra la barra con los hombros alejados de las orejas.", "Inicia el movimiento llevando los codos hacia abajo.", "Sube sin balancearte hasta acercar el pecho a la barra.", "Desciende de forma controlada hasta extender los brazos."],
-    mistakes: [{ title: "Balancear el cuerpo", detail: "Aumenta la asistencia y controla cada repetición." }, { title: "Encoger los hombros", detail: "Mantén los hombros bajos al iniciar el tirón." }],
-  },
-];
 
 const mealIcon = (type: string) => {
   if (type === "Desayuno") return <Wheat size={21} />;
@@ -162,6 +102,12 @@ function isWeeklyWeightDue(logs: WeightLog[]): boolean {
   return Date.now() - latest >= 7 * 24 * 60 * 60 * 1000;
 }
 
+function todayScheduledWorkoutId(trainingDays: number): string {
+  const todayWeekday = (new Date().getDay() + 6) % 7;
+  const slot = weekdaySlotsForTrainingDays(trainingDays).find((item) => item.weekday === todayWeekday);
+  return slot ? slot.workoutId : workouts[0].id;
+}
+
 export default function HealthCoachApp({ userId, profile, demoMode = false, onProfileChange, onLogout }: HealthCoachAppProps) {
   const [tab, setTab] = useState<Tab>("today");
   const [foodView, setFoodView] = useState<FoodView>("week");
@@ -190,7 +136,10 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
   const [profileModal, setProfileModal] = useState(false);
   const [profileDraft, setProfileDraft] = useState<Profile>(effectiveProfile);
   const [toast, setToast] = useState("");
+  const [activeWorkoutId, setActiveWorkoutId] = useState(() => todayScheduledWorkoutId(effectiveProfile.training_days));
   const [activeExercise, setActiveExercise] = useState(0);
+  const [swappedExercises, setSwappedExercises] = useState<Set<string>>(new Set());
+  const [restSecondsLeft, setRestSecondsLeft] = useState<number | null>(null);
   const [setData, setSetData] = useState([
     { kg: "25", reps: "12", done: false },
     { kg: "25", reps: "11", done: false },
@@ -272,6 +221,13 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
     return () => window.clearTimeout(timeout);
   }, [toast]);
 
+  useEffect(() => {
+    if (restSecondsLeft === null) return;
+    if (restSecondsLeft <= 0) return;
+    const timeout = window.setTimeout(() => setRestSecondsLeft((seconds) => (seconds !== null ? seconds - 1 : null)), 1000);
+    return () => window.clearTimeout(timeout);
+  }, [restSecondsLeft]);
+
   const currentProfile = useMemo(() => ({ ...effectiveProfile, current_weight_kg: currentWeight }), [effectiveProfile, currentWeight]);
   const personalizedWeek = useMemo(() => personalizeWeek(currentProfile, excludedMealKeys, blockedFoods), [currentProfile, excludedMealKeys, blockedFoods]);
   const selectedPlan = personalizedWeek[selectedDay];
@@ -293,7 +249,14 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
     const weekStart = mondayISO();
     return recentExerciseSets.filter((set) => set.performed_at.slice(0, 10) >= weekStart);
   }, [recentExerciseSets]);
-  const totalSetsPerWorkout = exercises.length * 3;
+  const activeWorkout = workouts.find((item) => item.id === activeWorkoutId) ?? workouts[0];
+  const baseExercise = activeWorkout.exercises[activeExercise] ?? activeWorkout.exercises[0];
+  const currentExercise = swappedExercises.has(baseExercise.name) ? buildAlternativeExercise(baseExercise) : baseExercise;
+  const weekSchedule = useMemo(() => weekdaySlotsForTrainingDays(currentProfile.training_days), [currentProfile.training_days]);
+  const latestByExercise = useMemo(() => latestSetsByExercise(recentExerciseSets), [recentExerciseSets]);
+  const todayWorkout = useMemo(() => workouts.find((item) => item.id === todayScheduledWorkoutId(currentProfile.training_days)) ?? workouts[0], [currentProfile.training_days]);
+  const todayTotalSets = todayWorkout.exercises.length * 3;
+  const totalSetsPerWorkout = activeWorkout.exercises.length * 3;
   const setsCompletedToday = useMemo(() => {
     const todayISO = new Date().toISOString().slice(0, 10);
     return weekExerciseSets.filter((set) => set.performed_at.slice(0, 10) === todayISO).length;
@@ -327,7 +290,7 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
   }, [currentWeight, startWeightKg, currentProfile.target_weight_kg]);
 
   const rings = {
-    workout: Math.min(1, totalSetsPerWorkout > 0 ? setsCompletedToday / totalSetsPerWorkout : 0),
+    workout: Math.min(1, todayTotalSets > 0 ? setsCompletedToday / todayTotalSets : 0),
   };
   const checkedGroceries = visibleGroceries.filter((item) => item.checked).length;
 
@@ -474,22 +437,41 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
   const toggleSetDone = async (index: number) => {
     const nextDone = !setData[index].done;
     setSetData((sets) => sets.map((set, i) => (i === index ? { ...set, done: nextDone } : set)));
+    if (nextDone) setRestSecondsLeft(parseRestSeconds(currentExercise.rest));
     if (userId && nextDone) {
       try {
-        await saveExerciseSet({ userId, workoutName: "Torso A", exerciseName: exercises[activeExercise].name, setNumber: index + 1, weightKg: Number(setData[index].kg) || null, repetitions: Number(setData[index].reps) || null });
-        setRecentExerciseSets((sets) => [...sets, { performed_at: new Date().toISOString(), weight_kg: Number(setData[index].kg) || null, repetitions: Number(setData[index].reps) || null }]);
+        await saveExerciseSet({ userId, workoutName: activeWorkout.name, exerciseName: currentExercise.name, setNumber: index + 1, weightKg: Number(setData[index].kg) || null, repetitions: Number(setData[index].reps) || null });
+        setRecentExerciseSets((sets) => [...sets, { performed_at: new Date().toISOString(), weight_kg: Number(setData[index].kg) || null, repetitions: Number(setData[index].reps) || null, exercise_name: currentExercise.name }]);
         setToast(`Serie ${index + 1} sincronizada`);
       } catch (caught) { setToast(caught instanceof Error ? caught.message : "No se ha podido guardar la serie"); }
     }
   };
 
+  const selectWorkout = (workoutId: string) => {
+    setActiveWorkoutId(workoutId);
+    setActiveExercise(0);
+    setTrainingView("overview");
+  };
+
+  const toggleExerciseSwap = (originalName: string) => {
+    setSwappedExercises((names) => {
+      const next = new Set(names);
+      if (next.has(originalName)) next.delete(originalName); else next.add(originalName);
+      return next;
+    });
+  };
+
   const startExercise = (index: number) => {
     setActiveExercise(index);
     setTrainingView("guide");
+    setRestSecondsLeft(null);
+    const exercise = activeWorkout.exercises[index];
+    const history = latestByExercise[exercise.name];
+    const startingKg = history?.weightKg != null ? String(history.weightKg) : exercise.initialKg;
     setSetData([
-      { kg: exercises[index].initialKg, reps: "12", done: false },
-      { kg: exercises[index].initialKg, reps: "10", done: false },
-      { kg: exercises[index].initialKg, reps: "", done: false },
+      { kg: startingKg, reps: "12", done: false },
+      { kg: startingKg, reps: "10", done: false },
+      { kg: startingKg, reps: "", done: false },
     ]);
   };
 
@@ -569,7 +551,7 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
   const greeting = hour < 12 ? "Buenos días" : hour < 20 ? "Buenas tardes" : "Buenas noches";
   const goalDirection = currentProfile.target_weight_kg < startWeightKg ? "perder" : currentProfile.target_weight_kg > startWeightKg ? "ganar" : "mantener";
   const kgToGoal = Math.abs(currentWeight - currentProfile.target_weight_kg);
-  const workoutSetsToday = `${setsCompletedToday}/${totalSetsPerWorkout}`;
+  const workoutSetsToday = `${setsCompletedToday}/${todayTotalSets}`;
 
   const renderToday = () => (
     <>
@@ -609,8 +591,8 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
         <ActivityRings rings={[{ value: rings.workout, color: "var(--green)", label: "", detail: "" }]} size={72} showLegend={false} />
         <div className="today-focus-copy">
           <span className="today-focus-eyebrow">Entreno de hoy</span>
-          <span className="today-focus-title">Torso A</span>
-          <span className="today-focus-meta">{setsCompletedToday === 0 ? "Aún no has empezado" : setsCompletedToday >= totalSetsPerWorkout ? "¡Completado! 💪" : `${workoutSetsToday} series hechas`}</span>
+          <span className="today-focus-title">{todayWorkout.name}</span>
+          <span className="today-focus-meta">{setsCompletedToday === 0 ? "Aún no has empezado" : setsCompletedToday >= todayTotalSets ? "¡Completado! 💪" : `${workoutSetsToday} series hechas`}</span>
         </div>
         <ChevronRight size={20} className="today-focus-arrow" />
       </button>
@@ -864,43 +846,56 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
   );
 
   const renderTraining = () => {
-    const exercise = exercises[activeExercise];
+    const todayWeekday = (new Date().getDay() + 6) % 7;
     if (trainingView === "guide") {
+      const exercise = currentExercise;
+      const isSwapped = swappedExercises.has(baseExercise.name);
+      const history = latestByExercise[exercise.name];
+      const lastTimeLabel = history ? `${history.weightKg ?? "—"} kg × ${history.reps ?? "—"}` : exercise.previous;
+      const restLabel = restSecondsLeft !== null ? `${String(Math.floor(restSecondsLeft / 60)).padStart(2, "0")}:${String(restSecondsLeft % 60).padStart(2, "0")}` : exercise.rest;
       return (
         <>
           <div className="page-header">
             <div>
-              <div className="meal-kicker">Ejercicio {activeExercise + 1} de {exercises.length}</div>
+              <div className="meal-kicker">Ejercicio {activeExercise + 1} de {activeWorkout.exercises.length}</div>
               <h1 className="page-title" style={{ fontSize: 24 }}>{exercise.name}</h1>
             </div>
             <button className="icon-button" onClick={() => setTrainingView("overview")}><X size={20} /></button>
           </div>
 
-          <div className="guide-video">
-            <video
-              key={exercise.videoUrl}
-              className="exercise-video"
-              src={exercise.videoUrl}
-              controls
-              autoPlay
-              muted
-              loop
-              playsInline
-              preload="metadata"
-              onError={() => setToast("No se ha podido cargar el vídeo. Comprueba la conexión.")}
-            />
-          </div>
-          <div className="video-credit">
-            Vídeo: <a href={exercise.videoSource} target="_blank" rel="noreferrer">{exercise.videoAuthor}</a> · {exercise.videoLicense}
-          </div>
+          {exercise.videoUrl ? (
+            <>
+              <div className="guide-video">
+                <video
+                  key={exercise.videoUrl}
+                  className="exercise-video"
+                  src={exercise.videoUrl}
+                  controls
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  preload="metadata"
+                  onError={() => setToast("No se ha podido cargar el vídeo. Comprueba la conexión.")}
+                />
+              </div>
+              <div className="video-credit">
+                Vídeo: <a href={exercise.videoSource} target="_blank" rel="noreferrer">{exercise.videoAuthor}</a> · {exercise.videoLicense}
+              </div>
+            </>
+          ) : (
+            <div className="card" style={{ textAlign: "center", color: "var(--muted)", fontSize: 12.5 }}>
+              {isSwapped ? "Sin vídeo para esta alternativa — sigue el mismo objetivo de series y descanso." : "Vídeo no disponible todavía para este ejercicio."}
+            </div>
+          )}
 
           <div className="card card-green">
             <span className="pill pill-light"><Target size={13} /> Objetivo de hoy</span>
             <div style={{ fontSize: 25, fontWeight: 870, letterSpacing: -.8, marginTop: 14 }}>{exercise.target}</div>
-            <div style={{ opacity: .72, fontSize: 12, marginTop: 4 }}>Descanso: {exercise.rest} · Última vez: {exercise.previous}</div>
+            <div style={{ opacity: .72, fontSize: 12, marginTop: 4 }}>Descanso: {exercise.rest} · Última vez: {lastTimeLabel}</div>
           </div>
 
-          <div className="section-header"><h2 className="section-title">Registra tus series</h2><span className="pill pill-soft"><TimerReset size={13} /> 01:30</span></div>
+          <div className="section-header"><h2 className="section-title">Registra tus series</h2><span className="pill pill-soft"><TimerReset size={13} /> {restLabel}</span></div>
           <div className="card">
             <div className="set-grid">
               <div className="set-head">SERIE</div><div className="set-head">KG</div><div className="set-head">REPS</div><div />
@@ -930,59 +925,84 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
           </div>
 
           <div style={{ display: "flex", gap: 9, marginTop: 15 }}>
-            <button className="secondary-button" style={{ flex: 1 }} onClick={() => setToast("Ejercicio sustituido por press con mancuernas")}><RefreshCw size={17} /> Ocupada</button>
+            <button className="secondary-button" style={{ flex: 1 }} onClick={() => toggleExerciseSwap(baseExercise.name)}><RefreshCw size={17} /> {isSwapped ? "Usar original" : "Ocupada"}</button>
             <button className="primary-button green" style={{ flex: 1 }} onClick={() => {
-              if (activeExercise < exercises.length - 1) startExercise(activeExercise + 1);
-              else { setTrainingView("overview"); setToast("Entrenamiento completado · +120 XP"); }
+              if (activeExercise < activeWorkout.exercises.length - 1) startExercise(activeExercise + 1);
+              else { setTrainingView("overview"); setToast("Entrenamiento completado"); }
             }}>Siguiente <ChevronRight size={17} /></button>
           </div>
         </>
       );
     }
 
+    const estimatedMinutes = Math.round(activeWorkout.exercises.length * 9);
     return (
       <>
         <div className="page-header">
-          <div><div className="meal-kicker">Plan híbrido · 3 días</div><h1 className="page-title">Entrenamiento</h1></div>
+          <div><div className="meal-kicker">Plan de {weekSchedule.length} {weekSchedule.length === 1 ? "día" : "días"} a la semana</div><h1 className="page-title">Entrenamiento</h1></div>
           <button className="icon-button"><MoreHorizontal size={21} /></button>
         </div>
 
         <div className="card card-dark workout-hero">
           <div>
-            <div className="weight-card-top"><span className="pill pill-light"><Dumbbell size={14} /> Hoy · Torso A</span><Flame size={22} /></div>
-            <h2 className="workout-title">Construye fuerza.<br />Sin improvisar.</h2>
-            <div className="workout-meta">6 ejercicios · 18 series · 55 min</div>
+            <div className="weight-card-top"><span className="pill pill-light"><Dumbbell size={14} /> {activeWorkoutId === todayScheduledWorkoutId(currentProfile.training_days) ? "Hoy · " : ""}{activeWorkout.name}</span><Flame size={22} /></div>
+            <h2 className="workout-title">{activeWorkout.summary}</h2>
+            <div className="workout-meta">{activeWorkout.exercises.length} ejercicios · {totalSetsPerWorkout} series · ~{estimatedMinutes} min</div>
           </div>
           <div className="workout-actions">
             <button className="primary-button" style={{ background: "var(--lime)", color: "var(--ink)" }} onClick={() => startExercise(0)}><Play size={17} fill="currentColor" /> Empezar</button>
-            <button className="secondary-button" style={{ background: "rgba(255,255,255,.12)", color: "white", borderColor: "rgba(255,255,255,.12)" }} onClick={() => setToast("Rutina adaptada a 35 minutos")}><Clock3 size={17} /> Adaptar</button>
           </div>
         </div>
 
-        <div className="section-header"><h2 className="section-title">Rutina de hoy</h2><span className="pill pill-green">Progresión activa</span></div>
+        <div className="section-header"><h2 className="section-title">Ejercicios de {activeWorkout.name}</h2><span className="pill pill-green">Progresión activa</span></div>
         <div className="card">
-          {exercises.map((exercise, index) => (
-            <div className={`exercise-row ${index === 0 ? "active" : ""}`} key={exercise.name} onClick={() => startExercise(index)} style={{ cursor: "pointer" }}>
-              <div className="exercise-number">{index + 1}</div>
-              <div className="exercise-copy"><div className="exercise-name">{exercise.name}</div><div className="exercise-detail">{exercise.detail} · {exercise.previous}</div></div>
-              <ChevronRight size={17} />
-            </div>
-          ))}
+          {activeWorkout.exercises.map((exercise, index) => {
+            const history = latestByExercise[exercise.name];
+            const lastLabel = history ? `${history.weightKg ?? "—"} kg × ${history.reps ?? "—"}` : exercise.previous;
+            return (
+              <div className={`exercise-row ${index === activeExercise ? "active" : ""}`} key={exercise.name} onClick={() => startExercise(index)} style={{ cursor: "pointer" }}>
+                <div className="exercise-number">{index + 1}</div>
+                <div className="exercise-copy"><div className="exercise-name">{exercise.name}</div><div className="exercise-detail">{exercise.detail} · {lastLabel}</div></div>
+                <ChevronRight size={17} />
+              </div>
+            );
+          })}
         </div>
 
         <div className="section-header"><h2 className="section-title">La app ha aprendido</h2></div>
         <div className="card card-lime">
           <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
             <div className="action-icon"><Sparkles size={21} /></div>
-            <div><div style={{ fontWeight: 850, fontSize: 15, marginBottom: 5 }}>Sube a 27,5 kg en press</div><div style={{ fontSize: 12, opacity: .7, lineHeight: 1.45 }}>Completaste 12 repeticiones en las tres series durante dos sesiones seguidas.</div></div>
+            {strengthTrend === null ? (
+              <div><div style={{ fontWeight: 850, fontSize: 15, marginBottom: 5 }}>Aún reuniendo datos</div><div style={{ fontSize: 12, opacity: .7, lineHeight: 1.45 }}>Registra unas cuantas series más para ver aquí tu progreso real de fuerza.</div></div>
+            ) : (
+              <div>
+                <div style={{ fontWeight: 850, fontSize: 15, marginBottom: 5 }}>{strengthTrend > 0 ? `Tu fuerza estimada sube un ${strengthTrend}%` : strengthTrend < 0 ? `Tu fuerza estimada baja un ${Math.abs(strengthTrend)}%` : "Tu fuerza estimada se mantiene"}</div>
+                <div style={{ fontSize: 12, opacity: .7, lineHeight: 1.45 }}>Comparando tus series más recientes con las primeras que registraste.</div>
+              </div>
+            )}
           </div>
         </div>
 
         <div className="section-header"><h2 className="section-title">Tu semana</h2></div>
         <div className="card">
-          <div className="setting-row"><div className="setting-icon"><Dumbbell size={20} /></div><div className="setting-copy"><div className="setting-name">Lunes · Torso A</div><div className="setting-value">Hoy · 48 min</div></div><span className="pill pill-green">Listo</span></div>
-          <div className="setting-row"><div className="setting-icon"><Dumbbell size={20} /></div><div className="setting-copy"><div className="setting-name">Miércoles · Pierna</div><div className="setting-value">6 ejercicios · 52 min</div></div><ChevronRight size={17} /></div>
-          <div className="setting-row"><div className="setting-icon"><Flame size={20} /></div><div className="setting-copy"><div className="setting-name">Sábado · Carrera suave</div><div className="setting-value">35 minutos · ritmo cómodo</div></div><ChevronRight size={17} /></div>
+          {weekSchedule.length === 0 ? (
+            <div className="meal-row" style={{ padding: 0, border: 0 }}><div className="meal-copy"><div className="meal-name">Sin días de entreno configurados</div><div className="meal-meta">Ajusta tus días de entreno en Perfil.</div></div></div>
+          ) : weekSchedule.map(({ weekday, workoutId }) => {
+            const workout = workouts.find((item) => item.id === workoutId) ?? workouts[0];
+            const monday = new Date(`${mondayISO()}T12:00:00`);
+            monday.setDate(monday.getDate() + weekday);
+            const dateISO = monday.toISOString().slice(0, 10);
+            const isToday = weekday === todayWeekday;
+            const doneThatDay = recentExerciseSets.some((set) => set.performed_at.slice(0, 10) === dateISO);
+            return (
+              <div className="setting-row" key={weekday} onClick={() => selectWorkout(workoutId)} style={{ cursor: "pointer" }}>
+                <div className="setting-icon"><Dumbbell size={20} /></div>
+                <div className="setting-copy"><div className="setting-name">{shortDayNames[weekdayShortNames[weekday]] ?? weekdayShortNames[weekday]} · {workout.name}</div><div className="setting-value">{isToday ? "Hoy · " : ""}{workout.exercises.length} ejercicios</div></div>
+                {doneThatDay ? <span className="pill pill-green">Listo</span> : <ChevronRight size={17} />}
+              </div>
+            );
+          })}
         </div>
       </>
     );

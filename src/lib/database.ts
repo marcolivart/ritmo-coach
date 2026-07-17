@@ -203,15 +203,15 @@ export async function getExerciseSetsInRange(
   userId: string,
   fromISO: string,
   toISO: string,
-): Promise<{ performed_at: string; weight_kg: number | null; repetitions: number | null }[]> {
+): Promise<{ performed_at: string; weight_kg: number | null; repetitions: number | null; exercise_name: string }[]> {
   const { data, error } = await client()
     .from("exercise_sets")
-    .select("performed_at, weight_kg, repetitions")
+    .select("performed_at, weight_kg, repetitions, exercise_name")
     .eq("user_id", userId)
     .gte("performed_at", fromISO)
     .lte("performed_at", toISO);
   raise(error);
-  return (data ?? []) as { performed_at: string; weight_kg: number | null; repetitions: number | null }[];
+  return (data ?? []) as { performed_at: string; weight_kg: number | null; repetitions: number | null; exercise_name: string }[];
 }
 
 /** Borra todo el historial (peso, entrenos, preferencias, lista de la compra)
