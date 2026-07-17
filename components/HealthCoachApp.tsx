@@ -222,9 +222,8 @@ export default function HealthCoachApp({ userId, profile, demoMode = false, onPr
   }, [toast]);
 
   useEffect(() => {
-    if (restSecondsLeft === null) return;
-    if (restSecondsLeft <= 0) return;
-    const timeout = window.setTimeout(() => setRestSecondsLeft((seconds) => (seconds !== null ? seconds - 1 : null)), 1000);
+    if (restSecondsLeft === null || restSecondsLeft <= 0) return;
+    const timeout = window.setTimeout(() => setRestSecondsLeft((s) => (s && s > 0 ? s - 1 : null)), 1000);
     return () => window.clearTimeout(timeout);
   }, [restSecondsLeft]);
 
