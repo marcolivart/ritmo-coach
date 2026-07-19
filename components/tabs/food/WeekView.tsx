@@ -11,30 +11,36 @@ const mealIcon = (type: string) => {
   return <Utensils size={21} />;
 };
 
+const DAY_LABEL: Record<string, string> = {
+  Lun: "lunes", Mar: "martes", Mié: "miércoles", Jue: "jueves", Vie: "viernes", Sáb: "sábado", Dom: "domingo",
+};
+
 export default function WeekView() {
   const app = useAppData();
-  const { personalizedWeek, selectedDay, profile, currentWeight, completions } = app;
-  const selectedPlan = personalizedWeek[selectedDay];
+  const { rollingWeek, selectedDay, profile, currentWeight, completions } = app;
+  const selectedPlan = rollingWeek[selectedDay];
   const totals = calculateDailyTotals(selectedPlan);
   const macros = macroSplit(totals.calories, totals.protein);
-  const todayIndex = weekdayMon0();
-  const regenerated = app.isDayRegenerated(selectedDay);
+  // selectedDay es un offset desde hoy; para regenerar necesitamos el índice de
+  // su día de la semana (lunes=0), que es como se guardan las exclusiones.
+  const selectedWeekday = weekdayMon0(new Date(`${selectedPlan.dateISO}T12:00:00`));
+  const regenerated = app.isDayRegenerated(selectedWeekday);
   const goalPillLabel = profile.goal === "lose" ? "Pérdida progresiva" : profile.goal === "gain" ? "Ganancia controlada" : "Mantenimiento";
 
   return (
     <>
       <div className="day-strip">
-        {personalizedWeek.map((day, index) => {
-          const isToday = index === todayIndex;
+        {rollingWeek.map((day, index) => {
+          const isToday = index === 0;
           return (
             <button
-              key={day.short}
+              key={day.dateISO}
               className={`day-chip pressable ${selectedDay === index ? "active" : ""} ${isToday ? "today" : ""}`}
               onClick={() => app.setSelectedDay(index)}
               aria-label={`${day.short} ${day.date}${isToday ? " (hoy)" : ""}`}
               aria-pressed={selectedDay === index}
             >
-              <span>{day.short}</span><strong>{day.date}</strong>
+              <span>{isToday ? "Hoy" : day.short}</span><strong>{day.date}</strong>
               {isToday && <i className="day-chip-dot" aria-hidden="true" />}
             </button>
           );
@@ -58,8 +64,8 @@ export default function WeekView() {
       </div>
 
       <div className="section-header">
-        <h2 className="section-title">Menú del {selectedPlan.short.toLowerCase()}</h2>
-        <button className="text-button pressable" onClick={() => void app.regenerateDay(selectedDay)}>
+        <h2 className="section-title">Menú del {selectedDay === 0 ? "día" : DAY_LABEL[selectedPlan.short] ?? selectedPlan.short.toLowerCase()}</h2>
+        <button className="text-button pressable" onClick={() => void app.regenerateDay(selectedWeekday)}>
           {regenerated ? "Volver al menú base" : "Regenerar"}
         </button>
       </div>

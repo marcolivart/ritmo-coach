@@ -1,5 +1,5 @@
 import type { Profile } from "../types";
-import { mondayISO, toLocalISO } from "./dates";
+import { addDaysISO, mondayISO, todayISO, weekdayMon0 } from "./dates";
 import { estimateDailyCalories } from "./nutrition";
 
 export type Meal = {
@@ -166,6 +166,81 @@ const mealMentions = (meal: Meal, foodsLower: string[]) =>
  *  - `favoriteFoods`: si la alternativa contiene más favoritos que el plato
  *    base, se prefiere la alternativa (marcada con swappedReason "favorite").
  *  - Respeta `meal_count` y escala cantidades al objetivo calórico. */
+function scaleMealsForDay(
+  profile: Profile,
+  base: BaseDayPlan,
+  weekdayIndex: number,
+  excludedKeys: Set<string>,
+  avoidLower: string[],
+  favoriteLower: string[],
+  target: number,
+): Meal[] {
+  const favoriteScore = (meal: Meal) =>
+    favoriteLower.filter((food) => textContainsAny(meal.name, [food]) || meal.ingredients.some((i) => textContainsAny(i, [food]))).length;
+
+  const dayMeals = applyMealCount(base.meals, profile.meal_count, weekdayIndex);
+  const baseTotal = dayMeals.reduce((sum, meal) => sum + meal.calories, 0);
+  const factor = Math.max(.72, Math.min(1.35, target / baseTotal));
+
+  return dayMeals.map((meal) => {
+    const key = mealKey(base, meal);
+    let sourceMeal = meal;
+    let swappedReason: Meal["swappedReason"];
+
+    if (excludedKeys.has(key) || (avoidLower.length > 0 && mealMentions(meal, avoidLower))) {
+      sourceMeal = buildAlternativeMeal(meal);
+      swappedReason = excludedKeys.has(key) ? "excluded" : "avoid";
+    } else if (favoriteLower.length > 0) {
+      const alternative = buildAlternativeMeal(meal);
+      if (favoriteScore(alternative) > favoriteScore(meal)) {
+        sourceMeal = alternative;
+        swappedReason = "favorite";
+      }
+    }
+
+    // Red de seguridad: si la alternativa también menciona un alimento a
+    // evitar, esas líneas de ingredientes desaparecen del plan.
+    const safeIngredients = avoidLower.length > 0
+      ? sourceMeal.ingredients.filter((ingredient) => !textContainsAny(ingredient, avoidLower))
+      : sourceMeal.ingredients;
+
+    return {
+      ...sourceMeal,
+      swappedReason,
+      calories: Math.round(sourceMeal.calories * factor),
+      protein: Math.round(sourceMeal.protein * Math.min(1.18, Math.max(.88, factor))),
+      ingredients: safeIngredients.map((ingredient) => scaleIngredient(ingredient, factor)),
+    };
+  });
+}
+
+/** Personaliza el menú de una fecha concreta usando el plato base de su día de
+ *  la semana (el menú es una plantilla Lun→Dom que se repite cada semana). */
+function buildDayPlan(
+  profile: Profile,
+  base: BaseDayPlan,
+  weekdayIndex: number,
+  dateISO: string,
+  excludedKeys: Set<string>,
+  avoidLower: string[],
+  favoriteLower: string[],
+  target: number,
+): DayPlan {
+  const meals = scaleMealsForDay(profile, base, weekdayIndex, excludedKeys, avoidLower, favoriteLower, target);
+  const dayOfMonth = new Date(`${dateISO}T12:00:00`).getDate();
+  return { ...base, date: dayOfMonth, dateISO, meals };
+}
+
+const lowerList = (foods: string[]) => foods.map((food) => food.toLowerCase()).filter(Boolean);
+
+/** Personaliza la semana natural lunes→domingo. Base de la lista de la compra
+ *  y del PDF.
+ *  - `avoidFoods` = bloqueados ∪ alergias. Si una comida los contiene se usa
+ *    su alternativa; si la alternativa también, se retiran esas líneas de
+ *    ingredientes (las alergias no pueden colarse en el plan).
+ *  - `favoriteFoods`: si la alternativa contiene más favoritos que el plato
+ *    base, se prefiere la alternativa.
+ *  - Respeta `meal_count` y escala cantidades al objetivo calórico. */
 export function personalizeWeek(
   profile: Profile,
   excludedKeys: Set<string>,
@@ -173,51 +248,30 @@ export function personalizeWeek(
   favoriteFoods: string[] = [],
 ): DayPlan[] {
   const target = estimateDailyCalories(profile);
-  const monday = new Date(`${mondayISO()}T12:00:00`);
-  const avoidLower = avoidFoods.map((food) => food.toLowerCase()).filter(Boolean);
-  const favoriteLower = favoriteFoods.map((food) => food.toLowerCase()).filter(Boolean);
-  const favoriteScore = (meal: Meal) =>
-    favoriteLower.filter((food) => textContainsAny(meal.name, [food]) || meal.ingredients.some((i) => textContainsAny(i, [food]))).length;
+  const avoidLower = lowerList(avoidFoods);
+  const favoriteLower = lowerList(favoriteFoods);
+  const monday = mondayISO();
+  return week.map((base, weekdayIndex) =>
+    buildDayPlan(profile, base, weekdayIndex, addDaysISO(monday, weekdayIndex), excludedKeys, avoidLower, favoriteLower, target));
+}
 
-  return week.map((day, dayIndex) => {
-    const dayMeals = applyMealCount(day.meals, profile.meal_count, dayIndex);
-    const baseTotal = dayMeals.reduce((sum, meal) => sum + meal.calories, 0);
-    const factor = Math.max(.72, Math.min(1.35, target / baseTotal));
-    const date = new Date(monday);
-    date.setDate(monday.getDate() + dayIndex);
-    const dateISO = toLocalISO(date);
-
-    const meals = dayMeals.map((meal) => {
-      const key = mealKey(day, meal);
-      let sourceMeal = meal;
-      let swappedReason: Meal["swappedReason"];
-
-      if (excludedKeys.has(key) || (avoidLower.length > 0 && mealMentions(meal, avoidLower))) {
-        sourceMeal = buildAlternativeMeal(meal);
-        swappedReason = excludedKeys.has(key) ? "excluded" : "avoid";
-      } else if (favoriteLower.length > 0) {
-        const alternative = buildAlternativeMeal(meal);
-        if (favoriteScore(alternative) > favoriteScore(meal)) {
-          sourceMeal = alternative;
-          swappedReason = "favorite";
-        }
-      }
-
-      // Red de seguridad: si la alternativa también menciona un alimento a
-      // evitar, esas líneas de ingredientes desaparecen del plan.
-      const safeIngredients = avoidLower.length > 0
-        ? sourceMeal.ingredients.filter((ingredient) => !textContainsAny(ingredient, avoidLower))
-        : sourceMeal.ingredients;
-
-      return {
-        ...sourceMeal,
-        swappedReason,
-        calories: Math.round(sourceMeal.calories * factor),
-        protein: Math.round(sourceMeal.protein * Math.min(1.18, Math.max(.88, factor))),
-        ingredients: safeIngredients.map((ingredient) => scaleIngredient(ingredient, factor)),
-      };
-    });
-
-    return { ...day, date: date.getDate(), dateISO, meals };
+/** Ventana móvil de `days` días a partir de HOY (hoy primero). Cada día toma el
+ *  menú de su día de la semana; así la tira mira siempre hacia delante y los
+ *  días ya pasados desaparecen. Misma personalización que personalizeWeek. */
+export function personalizeRollingWeek(
+  profile: Profile,
+  excludedKeys: Set<string>,
+  avoidFoods: string[],
+  favoriteFoods: string[] = [],
+  days = 7,
+): DayPlan[] {
+  const target = estimateDailyCalories(profile);
+  const avoidLower = lowerList(avoidFoods);
+  const favoriteLower = lowerList(favoriteFoods);
+  const start = todayISO();
+  return Array.from({ length: days }, (_, offset) => {
+    const dateISO = addDaysISO(start, offset);
+    const weekdayIndex = weekdayMon0(new Date(`${dateISO}T12:00:00`));
+    return buildDayPlan(profile, week[weekdayIndex], weekdayIndex, dateISO, excludedKeys, avoidLower, favoriteLower, target);
   });
 }

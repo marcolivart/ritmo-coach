@@ -25,7 +25,7 @@ import {
 } from "../lib/database";
 import { addDaysISO, mondayISO, todayISO, weekdayMon0, weeksAgoMondayISO, weekRangeLabel } from "../lib/dates";
 import { buildGroceryListFromWeek, type GroceryItem } from "../lib/groceries";
-import { applyMealCount, calculateDailyTotals, mealKey, personalizeWeek, week, type DayPlan, type Meal } from "../lib/menu";
+import { applyMealCount, calculateDailyTotals, mealKey, personalizeRollingWeek, personalizeWeek, week, type DayPlan, type Meal } from "../lib/menu";
 import { estimateDailyCalories, estimateDailyProtein, formatWeighingDay, isWeightDue, macroSplit, weighInStreakWeeks } from "../lib/nutrition";
 import { exportWeekPDF } from "../lib/pdf";
 import { buildWeeklyPlan, todayPlannedWorkoutId, type PlannedDay } from "../lib/plan";
@@ -109,7 +109,8 @@ export function useAppState({ userId, profile, onProfileChange, onLogout }: AppS
   const [tab, setTab] = useState<Tab>("today");
   const [foodView, setFoodView] = useState<FoodView>("week");
   const [trainingView, setTrainingView] = useState<TrainingView>("overview");
-  const [selectedDay, setSelectedDay] = useState(() => weekdayMon0());
+  // Offset dentro de la ventana móvil de Comida: 0 = hoy … 6 = dentro de 6 días.
+  const [selectedDay, setSelectedDay] = useState(0);
 
   const handleTabChange = useCallback((next: Tab) => {
     setTab(next);
@@ -119,7 +120,7 @@ export function useAppState({ userId, profile, onProfileChange, onLogout }: AppS
   const goToFood = useCallback((view: FoodView) => {
     setTab("food");
     setFoodView(view);
-    if (view === "week") setSelectedDay(weekdayMon0());
+    if (view === "week") setSelectedDay(0);
   }, []);
 
   // ---------- Estado base ----------
@@ -161,6 +162,11 @@ export function useAppState({ userId, profile, onProfileChange, onLogout }: AppS
   const avoidFoods = useMemo(() => [...blockedFoods, ...allergies], [blockedFoods, allergies]);
   const personalizedWeek = useMemo(
     () => personalizeWeek(effectiveProfile, excludedMealKeys, avoidFoods, favoriteFoods),
+    [effectiveProfile, excludedMealKeys, avoidFoods, favoriteFoods],
+  );
+  // Ventana móvil hacia delante (hoy + 6 días) para el selector de Comida.
+  const rollingWeek = useMemo(
+    () => personalizeRollingWeek(effectiveProfile, excludedMealKeys, avoidFoods, favoriteFoods),
     [effectiveProfile, excludedMealKeys, avoidFoods, favoriteFoods],
   );
   const estimatedCalories = estimateDailyCalories(effectiveProfile);
@@ -756,6 +762,7 @@ export function useAppState({ userId, profile, onProfileChange, onLogout }: AppS
     addPreference,
     deletePreference,
     personalizedWeek,
+    rollingWeek,
     calculateDailyTotals,
     estimatedCalories,
     estimatedProtein,
