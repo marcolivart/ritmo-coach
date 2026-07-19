@@ -21,6 +21,16 @@ export default function AppLayout({ title, tab, onTabChange, children, avatarIni
   const previousTabRef = useRef<Tab>(tab);
   const skipNextPush = useRef(false);
   const [direction, setDirection] = useState<"forward" | "back">("forward");
+  const [scrolled, setScrolled] = useState(false);
+
+  // El header muestra su borde inferior cuando el contenido está desplazado.
+  useEffect(() => {
+    const screen = screenRef.current;
+    if (!screen) return;
+    const handleScroll = () => setScrolled(screen.scrollTop > 6);
+    screen.addEventListener("scroll", handleScroll, { passive: true });
+    return () => screen.removeEventListener("scroll", handleScroll);
+  }, []);
 
   // Al montar: si la URL ya apunta a una pestaña conocida (recarga, marcador,
   // enlace compartido), sincronizamos el estado con esa ruta en vez de "Hoy".
@@ -67,7 +77,7 @@ export default function AppLayout({ title, tab, onTabChange, children, avatarIni
   return (
     <div className="app-stage">
       <div className="phone-shell">
-        <Header title={title} avatarInitial={avatarInitial} syncing={syncing} />
+        <Header title={title} avatarInitial={avatarInitial} syncing={syncing} scrolled={scrolled} />
         <main
           className="screen screen-with-header"
           ref={screenRef}

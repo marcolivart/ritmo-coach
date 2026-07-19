@@ -1,0 +1,50 @@
+/* Sheets (modales inferiores) y toast. Los sheets SIEMPRE se renderizan en el
+   prop `overlay` de AppLayout, fuera del contenedor con transform del slide. */
+
+.sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-sheet);
+  background: rgba(18, 25, 20, 0.35);
+  backdrop-filter: blur(9px);
+  display: flex;
+  align-items: flex-end;
+  border: 0;
+  padding: 0;
+  animation: fade-in var(--dur-base) ease both;
+}
+.sheet-panel {
+  width: 100%;
+  max-height: 88%;
+  overflow: auto;
+  background: var(--bg);
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  padding: 12px var(--screen-pad) calc(26px + env(safe-area-inset-bottom));
+  box-shadow: var(--shadow-sheet);
+  animation: sheet-up 0.32s var(--ease-out) both;
+}
+.sheet-backdrop.closing { animation: fade-out 0.22s ease both; }
+.sheet-backdrop.closing .sheet-panel { animation: sheet-down 0.22s ease both; }
+.sheet-handle { width: 46px; height: 5px; border-radius: var(--radius-full); background: var(--checkbox-line); margin: 0 auto var(--screen-pad); }
+.sheet-title { font-size: var(--text-2xl); letter-spacing: -0.8px; margin: 13px 0 7px; }
+.sheet-subtitle { color: var(--muted-strong); font-size: var(--text-sm); margin: 0 0 var(--screen-pad); line-height: 1.5; }
+
+.toast {
+  position: absolute;
+  left: 50%;
+  bottom: 96px;
+  transform: translateX(-50%);
+  z-index: var(--z-toast);
+  background: var(--ink);
+  color: white;
+  border-radius: var(--radius-full);
+  padding: 11px 15px;
+  font-size: var(--text-sm);
+  font-weight: var(--font-bold);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
+  animation: toast-in 0.2s ease;
+  white-space: nowrap;
+  max-width: calc(100% - 36px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

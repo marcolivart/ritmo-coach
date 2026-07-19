@@ -1,4 +1,8 @@
 import type { Profile } from "../types";
+import { mondayISO } from "./dates";
+
+// Re-export para los consumidores existentes; la implementación vive en dates.ts.
+export { mondayISO };
 
 function getAge(birthDate: string | null): number {
   if (!birthDate) return 30;
@@ -28,22 +32,38 @@ export function estimateDailyProtein(profile: Profile): number {
   return Math.round((profile.current_weight_kg * gramsPerKg) / 5) * 5;
 }
 
-export function mondayISO(date = new Date()): string {
-  const copy = new Date(date);
-  const day = copy.getDay();
-  const distance = day === 0 ? -6 : 1 - day;
-  copy.setDate(copy.getDate() + distance);
-  return copy.toISOString().slice(0, 10);
-}
-
 export function formatWeighingDay(day: number): string {
   return ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"][day] ?? "Domingo";
 }
 
-/** Días que faltan hasta el próximo día de pesaje configurado (0 = hoy). */
-export function daysUntilWeighIn(weighingDay: number, today = new Date()): number {
-  const current = today.getDay();
-  return (weighingDay - current + 7) % 7;
+/** Reparto real de macros: la proteína es la calculada, la grasa se fija en
+ *  ~27,5% de las kcal y los carbohidratos completan el resto. Sustituye al
+ *  antiguo split fijo 220 g/62 g escalado, que no respondía a nada. */
+export function macroSplit(calories: number, proteinG: number): { carbsG: number; fatG: number } {
+  const fatG = Math.round((calories * 0.275) / 9 / 5) * 5;
+  const carbsG = Math.max(0, Math.round((calories - proteinG * 4 - fatG * 9) / 4 / 5) * 5);
+  return { carbsG, fatG };
+}
+
+/** ¿Toca pesarse? Sí cuando no hay registro esta semana Y además ya hemos
+ *  llegado al día de pesaje configurado (o han pasado 7+ días desde el último
+ *  registro, para no dejar escapar semanas enteras). `weighingDay` usa la
+ *  codificación de getDay(): 0 = domingo … 6 = sábado. */
+export function isWeightDue(
+  logs: { measured_at: string }[],
+  weighingDay: number,
+  today = new Date(),
+): boolean {
+  if (!logs.length) return true;
+  const latest = logs[logs.length - 1].measured_at;
+  const monday = mondayISO(today);
+  if (latest >= monday) return false; // ya hay pesaje esta semana
+  const gapDays = (today.getTime() - new Date(`${latest}T12:00:00`).getTime()) / 86400000;
+  if (gapDays >= 7) return true;
+  // Día de pesaje de esta semana en índice lunes-0.
+  const weighingDayMon0 = (weighingDay + 6) % 7;
+  const todayMon0 = (today.getDay() + 6) % 7;
+  return todayMon0 >= weighingDayMon0;
 }
 
 /** Semanas consecutivas (lunes a domingo) con al menos un registro de peso,

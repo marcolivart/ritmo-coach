@@ -15,18 +15,40 @@ export type WorkoutExercise = {
   alternative: string;
 };
 
-export type Workout = {
+export type StrengthWorkout = {
   id: string;
   name: string;
   summary: string;
+  kind: "gym" | "home";
   exercises: WorkoutExercise[];
 };
 
+export type CardioBlock = { phase: string; minutes: number; detail: string };
+
+export type CardioWorkout = {
+  id: string;
+  name: string;
+  summary: string;
+  kind: "cardio";
+  modality: "Running" | "Caminar" | "Bici";
+  durationMin: number;
+  blocks: CardioBlock[];
+};
+
+export type Workout = StrengthWorkout | CardioWorkout;
+
+export function isCardioWorkout(workout: Workout): workout is CardioWorkout {
+  return workout.kind === "cardio";
+}
+
+/** IMPORTANTE: los `name` de los ejercicios de torso-a y pierna NO deben
+ *  cambiar — el historial de `exercise_sets` se cruza por ese texto. */
 export const workouts: Workout[] = [
   {
     id: "torso-a",
     name: "Torso A",
     summary: "Construye fuerza. Sin improvisar.",
+    kind: "gym",
     exercises: [
       {
         name: "Press de pecho en máquina", detail: "3 series · 8–12 rep", muscle: "Pecho", previous: "25 kg", initialKg: "25", target: "3 × 8–12 repeticiones", rest: "90 s",
@@ -82,6 +104,7 @@ export const workouts: Workout[] = [
     id: "pierna",
     name: "Pierna",
     summary: "Empuja fuerte. Aterriza mejor.",
+    kind: "gym",
     exercises: [
       {
         name: "Prensa de piernas", detail: "3 series · 10–15 rep", muscle: "Piernas", previous: "70 kg", initialKg: "70", target: "3 × 10–15 repeticiones", rest: "90 s",
@@ -122,6 +145,145 @@ export const workouts: Workout[] = [
       },
     ],
   },
+  {
+    id: "torso-b",
+    name: "Torso B",
+    summary: "Otro ángulo. Mismo hambre.",
+    kind: "gym",
+    exercises: [
+      {
+        name: "Press inclinado con mancuernas", detail: "3 series · 8–12 rep", muscle: "Pecho", previous: "14 kg por mano", initialKg: "14", target: "3 × 8–12 repeticiones", rest: "90 s",
+        videoUrl: "", videoSource: "", videoAuthor: "", videoLicense: "",
+        technique: ["Ajusta el banco a unos 30° de inclinación.", "Apoya bien la espalda y los pies antes de empezar.", "Baja las mancuernas de forma controlada hasta la altura del pecho.", "Empuja hacia arriba sin que las mancuernas choquen arriba."],
+        mistakes: [{ title: "Inclinar demasiado el banco", detail: "Más de 45° convierte el ejercicio en press de hombro." }, { title: "Rebotar abajo", detail: "Haz una pausa breve en el estiramiento antes de subir." }],
+        alternative: "Press de pecho en máquina",
+      },
+      {
+        name: "Jalón al pecho", detail: "3 series · 8–12 rep", muscle: "Espalda", previous: "40 kg", initialKg: "40", target: "3 × 8–12 repeticiones", rest: "90 s",
+        videoUrl: "", videoSource: "", videoAuthor: "", videoLicense: "",
+        technique: ["Sujeta la barra algo más abierta que los hombros.", "Fija las piernas bajo los rodillos y saca ligeramente el pecho.", "Tira de la barra hacia la parte alta del pecho llevando los codos abajo.", "Sube controlando el peso hasta estirar los brazos."],
+        mistakes: [{ title: "Echarse muy atrás", detail: "Un ligero ángulo basta; no conviertas el jalón en un remo." }, { title: "Tirar con los brazos", detail: "Piensa en llevar los codos al bolsillo, no en tirar con las manos." }],
+        alternative: "Dominadas asistidas",
+      },
+      {
+        name: "Remo en máquina", detail: "3 series · 10–12 rep", muscle: "Espalda", previous: "35 kg", initialKg: "35", target: "3 × 10–12 repeticiones", rest: "90 s",
+        videoUrl: "", videoSource: "", videoAuthor: "", videoLicense: "",
+        technique: ["Apoya el pecho en el soporte y agarra las asas.", "Tira llevando los codos hacia atrás, pegados al cuerpo.", "Junta ligeramente las escápulas al final del recorrido.", "Vuelve despacio sin dejar caer el peso."],
+        mistakes: [{ title: "Encoger los hombros", detail: "Mantén los hombros lejos de las orejas durante el tirón." }, { title: "Usar impulso con el tronco", detail: "El pecho no debe despegarse del soporte." }],
+        alternative: "Remo inclinado con barra",
+      },
+      {
+        name: "Elevaciones laterales", detail: "3 series · 12–15 rep", muscle: "Hombros", previous: "7 kg por mano", initialKg: "7", target: "3 × 12–15 repeticiones", rest: "60 s",
+        videoUrl: "", videoSource: "", videoAuthor: "", videoLicense: "",
+        technique: ["De pie, mancuernas a los lados con codos ligeramente flexionados.", "Sube los brazos hasta la altura de los hombros, no más.", "Imagina que viertes agua de una jarra al final del recorrido.", "Baja despacio resistiendo el peso."],
+        mistakes: [{ title: "Balancear el cuerpo", detail: "Si necesitas impulso, la carga es excesiva." }, { title: "Subir por encima del hombro", detail: "A partir de ahí trabaja el trapecio, no el deltoides." }],
+        alternative: "Press de hombros",
+      },
+      {
+        name: "Curl de bíceps con barra", detail: "3 series · 10–12 rep", muscle: "Bíceps", previous: "15 kg", initialKg: "15", target: "3 × 10–12 repeticiones", rest: "60 s",
+        videoUrl: "", videoSource: "", videoAuthor: "", videoLicense: "",
+        technique: ["Agarra la barra a la anchura de los hombros, codos pegados al torso.", "Sube la barra flexionando solo los codos.", "Aprieta el bíceps arriba un instante.", "Baja de forma controlada hasta estirar del todo."],
+        mistakes: [{ title: "Mover los codos hacia delante", detail: "Los codos son una bisagra fija a los lados del cuerpo." }, { title: "Balanceo lumbar", detail: "Apoya la espalda en una pared si te cuesta mantenerte estable." }],
+        alternative: "Curl con mancuernas alterno",
+      },
+      {
+        name: "Press francés", detail: "3 series · 10–12 rep", muscle: "Tríceps", previous: "12 kg", initialKg: "12", target: "3 × 10–12 repeticiones", rest: "60 s",
+        videoUrl: "", videoSource: "", videoAuthor: "", videoLicense: "",
+        technique: ["Túmbate en el banco con la barra sobre la frente, brazos verticales.", "Flexiona solo los codos para bajar la barra hacia la cabeza.", "Mantén los codos apuntando al techo, sin abrirlos.", "Extiende los brazos sin bloquear con violencia."],
+        mistakes: [{ title: "Abrir los codos", detail: "Reduce el peso hasta poder mantenerlos paralelos." }, { title: "Convertirlo en press", detail: "El brazo no se mueve: solo el antebrazo baja y sube." }],
+        alternative: "Fondos en banco",
+      },
+    ],
+  },
+  {
+    id: "casa",
+    name: "Cuerpo completo en casa",
+    summary: "Sin material. Sin excusas.",
+    kind: "home",
+    exercises: [
+      {
+        name: "Flexiones", detail: "3 series · 8–15 rep", muscle: "Pecho", previous: "12 rep", initialKg: "0", target: "3 × 8–15 repeticiones", rest: "75 s",
+        videoUrl: "", videoSource: "", videoAuthor: "", videoLicense: "",
+        technique: ["Manos algo más abiertas que los hombros, cuerpo en línea recta.", "Baja el pecho hasta casi rozar el suelo.", "Aprieta abdomen y glúteos durante todo el movimiento.", "Si no llegas a 8, apoya las rodillas."],
+        mistakes: [{ title: "Cadera caída", detail: "Refuerza el abdomen o sube las manos a una superficie elevada." }, { title: "Medio recorrido", detail: "Mejor menos repeticiones completas que muchas a medias." }],
+        alternative: "Flexiones inclinadas",
+      },
+      {
+        name: "Sentadilla sin peso", detail: "3 series · 15–20 rep", muscle: "Piernas", previous: "18 rep", initialKg: "0", target: "3 × 15–20 repeticiones", rest: "75 s",
+        videoUrl: "", videoSource: "", videoAuthor: "", videoLicense: "",
+        technique: ["Pies a la anchura de los hombros, puntas ligeramente abiertas.", "Baja como si te sentaras en una silla, pecho arriba.", "Llega al menos a los 90° de rodilla.", "Empuja el suelo para subir apretando el glúteo."],
+        mistakes: [{ title: "Talones que se levantan", detail: "Reparte el peso en todo el pie y baja más despacio." }, { title: "Rodillas hacia dentro", detail: "Empuja las rodillas en la dirección de las punteras." }],
+        alternative: "Sentadilla en silla",
+      },
+      {
+        name: "Zancadas alternas", detail: "3 series · 10–12 rep por pierna", muscle: "Piernas", previous: "10 rep", initialKg: "0", target: "3 × 10–12 repeticiones por pierna", rest: "75 s",
+        videoUrl: "", videoSource: "", videoAuthor: "", videoLicense: "",
+        technique: ["Paso largo al frente con el torso erguido.", "Baja hasta que ambas rodillas formen unos 90°.", "Empuja con el talón delantero para volver.", "Alterna la pierna en cada repetición."],
+        mistakes: [{ title: "Paso demasiado corto", detail: "La rodilla delantera no debe pasar de la puntera." }, { title: "Perder el equilibrio", detail: "Mira al frente y baja más despacio." }],
+        alternative: "Sentadilla sin peso",
+      },
+      {
+        name: "Remo invertido en mesa", detail: "3 series · 8–12 rep", muscle: "Espalda", previous: "8 rep", initialKg: "0", target: "3 × 8–12 repeticiones", rest: "75 s",
+        videoUrl: "", videoSource: "", videoAuthor: "", videoLicense: "",
+        technique: ["Túmbate bajo una mesa robusta y agarra el borde.", "Cuerpo en línea recta, talones apoyados.", "Tira del pecho hacia la mesa juntando las escápulas.", "Baja de forma controlada sin tocar el suelo."],
+        mistakes: [{ title: "Cadera descolgada", detail: "Aprieta glúteo y abdomen para mantener la línea." }, { title: "Tirón brusco", detail: "Sube en dos segundos, baja en dos segundos." }],
+        alternative: "Remo con mochila cargada",
+      },
+      {
+        name: "Plancha", detail: "3 series · 30–60 s", muscle: "Core", previous: "40 s", initialKg: "0", target: "3 × 30–60 segundos", rest: "60 s",
+        videoUrl: "", videoSource: "", videoAuthor: "", videoLicense: "",
+        technique: ["Antebrazos en el suelo, codos bajo los hombros.", "Cuerpo en línea recta de cabeza a talones.", "Aprieta abdomen y glúteos; respira normal.", "Si pierdes la postura, termina la serie."],
+        mistakes: [{ title: "Cadera alta o hundida", detail: "Grábate o mírate en un espejo: línea recta siempre." }, { title: "Aguantar la respiración", detail: "Respiración fluida; la tensión va en el abdomen." }],
+        alternative: "Plancha con rodillas apoyadas",
+      },
+      {
+        name: "Puente de glúteo", detail: "3 series · 15–20 rep", muscle: "Glúteos", previous: "16 rep", initialKg: "0", target: "3 × 15–20 repeticiones", rest: "60 s",
+        videoUrl: "", videoSource: "", videoAuthor: "", videoLicense: "",
+        technique: ["Túmbate boca arriba con las rodillas flexionadas.", "Empuja con los talones y sube la cadera.", "Aprieta el glúteo arriba uno o dos segundos.", "Baja sin apoyar del todo y repite."],
+        mistakes: [{ title: "Arquear la lumbar arriba", detail: "Sube hasta alinear cadera y hombros, no más." }, { title: "Empujar con las puntas", detail: "El peso va en los talones para activar el glúteo." }],
+        alternative: "Puente a una pierna",
+      },
+    ],
+  },
+  {
+    id: "cardio-run",
+    name: "Rodaje suave",
+    summary: "Kilómetros que suman. Sin reventar.",
+    kind: "cardio",
+    modality: "Running",
+    durationMin: 35,
+    blocks: [
+      { phase: "Calentar", minutes: 5, detail: "Camina rápido o trota muy suave. Articulaciones despiertas." },
+      { phase: "Rodar", minutes: 25, detail: "Ritmo conversacional: deberías poder hablar sin ahogarte." },
+      { phase: "Soltar", minutes: 5, detail: "Trote muy suave o caminata. Deja que baje el pulso." },
+    ],
+  },
+  {
+    id: "cardio-walk",
+    name: "Caminata rápida",
+    summary: "El cardio que siempre puedes hacer.",
+    kind: "cardio",
+    modality: "Caminar",
+    durationMin: 45,
+    blocks: [
+      { phase: "Arrancar", minutes: 5, detail: "Paso normal, hombros sueltos." },
+      { phase: "Paso ligero", minutes: 35, detail: "Ritmo que te haga respirar más fuerte, sin llegar a correr. Brazos activos." },
+      { phase: "Enfriar", minutes: 5, detail: "Paso tranquilo para terminar." },
+    ],
+  },
+  {
+    id: "cardio-bike",
+    name: "Bici constante",
+    summary: "Piernas rodando, cabeza despejada.",
+    kind: "cardio",
+    modality: "Bici",
+    durationMin: 40,
+    blocks: [
+      { phase: "Calentar", minutes: 5, detail: "Cadencia alegre con poca resistencia." },
+      { phase: "Rodar", minutes: 30, detail: "Resistencia media, cadencia constante. Esfuerzo 6 sobre 10." },
+      { phase: "Soltar", minutes: 5, detail: "Baja la resistencia y pedalea suave." },
+    ],
+  },
 ];
 
 export const weekdayShortNames = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
@@ -144,19 +306,6 @@ export function buildAlternativeExercise(exercise: WorkoutExercise): WorkoutExer
   };
 }
 
-/** Reparte los entrenos de la semana según los días de entreno del perfil,
- *  alternando entre los workouts disponibles. weekday: 0 = lunes ... 6 = domingo. */
-export function weekdaySlotsForTrainingDays(trainingDays: number): { weekday: number; workoutId: string }[] {
-  const patterns: Record<number, number[]> = {
-    1: [0],
-    2: [0, 3],
-    3: [0, 2, 4],
-    4: [0, 1, 3, 4],
-    5: [0, 1, 2, 3, 4],
-    6: [0, 1, 2, 3, 4, 5],
-    7: [0, 1, 2, 3, 4, 5, 6],
-  };
-  const clamped = Math.max(0, Math.min(7, Math.round(trainingDays)));
-  const weekdays = patterns[clamped] ?? [];
-  return weekdays.map((weekday, index) => ({ weekday, workoutId: workouts[index % workouts.length].id }));
+export function workoutById(id: string): Workout | undefined {
+  return workouts.find((workout) => workout.id === id);
 }

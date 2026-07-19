@@ -4,11 +4,12 @@ interface HeaderProps {
   title: string;
   avatarInitial?: string;
   syncing?: boolean;
+  scrolled?: boolean;
 }
 
-export default function Header({ title, avatarInitial, syncing }: HeaderProps) {
+export default function Header({ title, avatarInitial, syncing, scrolled }: HeaderProps) {
   return (
-    <header className="app-header">
+    <header className={`app-header ${scrolled ? "scrolled" : ""}`}>
       <h1 className="app-header-title">{title}</h1>
       {avatarInitial && (
         <div className="app-header-actions">

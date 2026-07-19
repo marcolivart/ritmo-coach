@@ -2,6 +2,18 @@ export type Goal = "lose" | "maintain" | "gain";
 export type ActivityLevel = "sedentary" | "light" | "moderate" | "high";
 export type FoodPreferenceType = "blocked" | "allergy" | "disliked" | "favorite";
 
+/** Horarios habituales: clave = tipo de comida del menú o "Entreno", valor "HH:MM". */
+export type Schedule = Record<string, string>;
+
+export const DEFAULT_SCHEDULE: Schedule = {
+  "Desayuno": "08:00",
+  "Media mañana": "11:00",
+  "Comida": "13:30",
+  "Merienda": "17:00",
+  "Cena": "21:00",
+  "Entreno": "19:00",
+};
+
 export type Profile = {
   id: string;
   name: string;
@@ -16,6 +28,8 @@ export type Profile = {
   exercise_types: string[];
   training_days: number;
   meal_count: number;
+  /** Columna añadida por migration-v2.sql; puede faltar en BD pre-migración. */
+  schedule?: Schedule | null;
   onboarding_completed: boolean;
   created_at?: string;
   updated_at?: string;

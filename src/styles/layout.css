@@ -1,0 +1,92 @@
+/* Shell interno: header fijo, contenido scrolleable, navegación inferior,
+   cabeceras de página y transición entre pestañas. */
+
+.screen {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  padding: calc(var(--screen-pad) + env(safe-area-inset-top)) var(--screen-pad) 130px;
+}
+.screen::-webkit-scrollbar { display: none; }
+
+.app-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: var(--z-chrome);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: max(30px, calc(14px + env(safe-area-inset-top))) var(--screen-pad) var(--space-3);
+  background: var(--bg);
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--dur-base) ease;
+}
+.app-header.scrolled { border-bottom-color: var(--line); }
+.app-header-title { margin: 0; font-size: var(--text-lg); letter-spacing: -0.45px; font-weight: var(--font-heavy); }
+.app-header-actions { display: flex; align-items: center; gap: var(--space-2); }
+.avatar-small { width: 30px; height: 30px; font-size: var(--text-sm); border-width: 2px; }
+
+/* El contenido compensa la altura del header fijo. max() garantiza espacio
+   suficiente aunque env(safe-area-inset-top) devuelva 0. */
+.screen-with-header {
+  padding-top: max(80px, calc(64px + env(safe-area-inset-top)));
+}
+
+/* Transición entre pestañas, estilo iOS. */
+.screen-slide {
+  animation-duration: 0.32s;
+  animation-timing-function: var(--ease-out);
+  animation-fill-mode: both;
+}
+.screen-slide-forward { animation-name: slide-in-from-right; }
+.screen-slide-back { animation-name: slide-in-from-left; }
+
+.bottom-nav {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 14px 12px calc(2px + env(safe-area-inset-bottom));
+  background: rgba(250, 251, 247, 0.92);
+  backdrop-filter: blur(18px);
+  border-top: 1px solid rgba(28, 33, 29, 0.06);
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  z-index: var(--z-chrome);
+}
+.nav-button {
+  border: 0;
+  background: transparent;
+  padding: 8px 2px 2px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: var(--nav-inactive);
+  font-size: var(--text-sm);
+  font-weight: var(--font-bold);
+  cursor: pointer;
+}
+.nav-button.active { color: var(--green-deep); }
+.nav-icon-wrap {
+  width: 48px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-md);
+  transition: background var(--dur-fast) ease;
+}
+.nav-button.active .nav-icon-wrap { background: var(--green-soft); }
+
+.page-header { display: flex; align-items: center; justify-content: space-between; margin: 5px 2px 18px; }
+.page-title { margin: 0; font-size: var(--text-3xl); letter-spacing: -1px; }
+
+.section-header { display: flex; align-items: center; justify-content: space-between; margin: var(--space-6) 2px var(--space-3); }
+.section-title { margin: 0; font-size: var(--text-lg); letter-spacing: -0.45px; }
+
+.hero-title { font-size: var(--text-display); line-height: 1.02; letter-spacing: -1.8px; margin: 4px 0 10px; font-weight: var(--font-black); }
+.hero-subtitle { margin: 0 0 22px; color: var(--muted); font-size: var(--text-base); line-height: 1.4; max-width: 300px; }

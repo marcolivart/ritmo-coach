@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 export interface RingDatum {
   /** Progreso de 0 a 1. Valores fuera de rango se recortan. */
   value: number;
@@ -17,6 +19,13 @@ const GAP = 5;
 
 export default function ActivityRings({ rings, size = 132, showLegend = true }: ActivityRingsProps) {
   const center = size / 2;
+  // Primer paint con el anillo vacío; el siguiente frame aplica el valor real
+  // y la transición CSS de stroke-dashoffset lo "llena" al montar.
+  const [filled, setFilled] = useState(false);
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setFilled(true));
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
   return (
     <div className="activity-rings">
@@ -25,7 +34,7 @@ export default function ActivityRings({ rings, size = 132, showLegend = true }: 
           const radius = center - STROKE_WIDTH / 2 - index * (STROKE_WIDTH + GAP);
           const circumference = 2 * Math.PI * radius;
           const clamped = Math.max(0, Math.min(1, ring.value));
-          const dashOffset = circumference * (1 - clamped);
+          const dashOffset = filled ? circumference * (1 - clamped) : circumference;
           return (
             <g key={ring.label}>
               <circle

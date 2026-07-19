@@ -1,25 +1,15 @@
+import { weeksAgoMondayISO } from "./dates";
+
 export interface ExerciseSetRecord {
   performed_at: string;
   weight_kg: number | null;
   repetitions: number | null;
   exercise_name: string;
+  set_number?: number | null;
 }
 
-/** Lunes ISO de hace N semanas (0 = lunes de esta semana). */
-export function weeksAgoMondayISO(weeksAgo: number, today = new Date()): string {
-  const monday = mondayISOInternal(today);
-  const d = new Date(`${monday}T12:00:00`);
-  d.setDate(d.getDate() - weeksAgo * 7);
-  return mondayISOInternal(d);
-}
-
-function mondayISOInternal(date: Date): string {
-  const copy = new Date(date);
-  const day = copy.getDay();
-  const distance = day === 0 ? -6 : 1 - day;
-  copy.setDate(copy.getDate() + distance);
-  return copy.toISOString().slice(0, 10);
-}
+// Re-export para los consumidores existentes; la implementación vive en dates.ts.
+export { weeksAgoMondayISO };
 
 /** 1RM estimado con la fórmula de Epley: peso × (1 + reps/30). */
 export function estimatedOneRepMax(weightKg: number, reps: number): number {

@@ -7,7 +7,7 @@ App de entrenador personal (nutrición semanal medida + entrenamiento guiado). P
 - **Responde en español**, con honestidad directa. Si algo está mal o hay una idea mejor, dilo sin rodeos antes de los puntos positivos. No validar por validar.
 - **Modo eficiencia**: respuestas mínimas, sin relleno, resultado final listo para usar. Pregunta solo si es imprescindible.
 - No asumas que el usuario tiene razón. Cuestiona supuestos cuando aporte. Diferencia hechos de inferencias.
-- **Verifica de verdad, no supongas**: compila (`npx tsc --noEmit`) y prueba antes de afirmar que algo funciona. Este proyecto ha tenido varios bugs por dar cosas por buenas sin ejecutarlas.
+- **Verifica de verdad, no supongas**: compila (`npm run typecheck`) y prueba antes de afirmar que algo funciona. Este proyecto ha tenido varios bugs por dar cosas por buenas sin ejecutarlas.
 
 ## Stack
 
@@ -15,90 +15,108 @@ App de entrenador personal (nutrición semanal medida + entrenamiento guiado). P
 - Supabase (auth + base de datos, con RLS por `auth.uid()`)
 - lucide-react (iconos)
 - Vercel (deploy automático al hacer push a `main`)
-- **NO usa Tailwind.** Todo el CSS está en `src/index.css` con variables propias. No introducir clases Tailwind, no se compilan.
+- **NO usa Tailwind.** CSS propio con tokens en `src/styles/` (entrada: `src/index.css`, solo @imports). No introducir clases Tailwind, no se compilan.
 
 ## Comandos
 
 ```
-npm run dev       # servidor local (localhost:5173)
-npm run build     # build de producción
-npx tsc --noEmit -p tsconfig.json   # comprobar tipos (usar SIEMPRE antes de dar algo por bueno)
+npm run dev        # servidor local con Supabase real (localhost:5173)
+npm run dev:demo   # servidor local en MODO DEMO (localStorage, no toca Supabase) — usar para probar UI
+npm run build      # build de producción
+npm run typecheck  # comprobar tipos (usar SIEMPRE antes de dar algo por bueno)
 ```
 
 Deploy: `git add . && git commit -m "..." && git push` → Vercel despliega solo.
 Producción: https://ritmo-coach.vercel.app/
 Repo: https://github.com/marcolivart/ritmo-coach
 
-## Sistema de diseño (src/index.css)
+## Migración pendiente de ejecutar (IMPORTANTE)
 
-Paleta (variables CSS en `:root`):
-- `--bg: #f4f5ef` (crema de fondo)
-- `--ink: #161b17` (texto/oscuro)
-- `--green: #1f6d48`, `--green-deep: #154c33`, `--green-soft: #daf2e2`
-- `--lime: #d9f37d` (acento)
-- `--orange: #ff9f5b`, `--red: #e75f5f`
-- `--muted: #6d756e`
+`supabase/migration-v2.sql` debe ejecutarse en Supabase > SQL Editor. Aporta: unique index en `exercise_sets` (anti-duplicados), unicidad de compra con categoría, columna `profiles.schedule` (horarios) y RPC `reset_user_data` transaccional. **La app funciona sin ella** (fallbacks por código de error en `database.ts`), pero hasta entonces los horarios no persisten en BD y el reset no es atómico.
 
-Estética: wellness premium, tipografía redondeada (SF Pro Rounded / ui-rounded), radios generosos (shell 44px, tarjetas ~26px), sombras suaves. Móvil primero, ancho base 390-430px.
+## Sistema de diseño (src/styles/)
+
+Tokens en `src/styles/tokens.css` — única fuente de verdad. No usar valores literales para color/radio/sombra/peso tipográfico en componentes: si falta un token, se añade.
+
+- Color: paleta crema/verde/lima de siempre + tonos derivados (`--green-tint`, `--lime-soft`, `--red-soft`, `--muted-strong` para texto pequeño AA…).
+- Escalas: `--space-1..8` (paso 4px), radios `--radius-xs..shell` (8→44) + `--radius-full`, tipografía `--text-2xs..mega` con SOLO 4 pesos (`--font-semibold/bold/heavy/black` = 600/700/800/900), sombras `--shadow-sm/md/lg/shell/sheet`, `--z-chrome/sheet/toast`, movimiento `--ease-out`, `--dur-fast/base/slow`.
+- Ficheros: `tokens` → `motion` (keyframes, `.pressable`, reduced-motion) → `base` → `layout` → `components` (card/pill/iconbox/botones/filas/seg/skeleton) → `screens` → `overlays` (sheet/toast) → `auth`.
+- Interacción: todo elemento pulsable lleva clase `.pressable`; `:focus-visible` global; touch targets ≥44px.
+- Estética: wellness premium, ui-rounded/SF Pro Rounded, móvil primero 390-430px.
 
 ## Estructura
 
 ```
 src/
-  App.tsx              # entry, gestiona sesión Supabase y perfil; muestra AuthScreen/Onboarding/HealthCoachApp
-  main.tsx
-  index.css            # TODO el CSS (grande, ~1000 líneas)
-  types.ts             # Profile, WeightLog, FoodPreference
+  App.tsx               # entry: sesión Supabase + perfil; AuthScreen/Onboarding/HealthCoachApp
+  main.tsx              # + registro del service worker (solo PROD)
+  index.css             # solo @imports de src/styles/
+  types.ts              # Profile (con schedule), Schedule+DEFAULT_SCHEDULE, WeightLog, FoodPreference…
+  state/
+    useAppState.ts      # TODO el estado de la app (hook compositor): carga, perfil, peso, comida, entreno, sheets, coach
+    AppContext.tsx      # AppDataProvider + useAppData()
   lib/
-    supabase.ts        # cliente Supabase (persistSession activo)
-    database.ts        # todas las queries: perfil, peso, entrenos, preferencias, compra, resetUserData
-    nutrition.ts       # cálculo calorías/proteína objetivo, fechas de pesaje, racha
-    stats.ts           # estadísticas de Progreso (1RM Epley, adherencia, tendencia fuerza)
-    routes.ts          # tipo Tab + mapa de rutas (/hoy, /comida, etc.)
+    supabase.ts         # cliente (persistSession)
+    database.ts         # queries + fallbacks pre-migración (códigos de error PGRST202/42P10/42703…)
+    dates.ts            # ÚNICA fuente de fechas (local-safe). PROHIBIDO toISOString().slice(0,10) para días
+    nutrition.ts        # kcal (Mifflin-St Jeor), proteína, macroSplit real, isWeightDue (usa weighing_day), racha
+    menu.ts             # menú base 7×4 + applyMealCount (3/4/5) + personalizeWeek (alergias∪bloqueados filtran, favoritos influyen)
+    groceries.ts        # lista de compra desde ingredientes reales
+    workouts.ts         # catálogo: gym (Torso A/B, Pierna), casa, cardio (run/walk/bike). Unión StrengthWorkout|CardioWorkout
+    plan.ts             # buildWeeklyPlan según exercise_types y training_days (mezcla fuerza+cardio)
+    stats.ts            # 1RM Epley, adherencia, tendencia fuerza
+    coach.ts            # motor del coach POR REGLAS (~14 reglas priorizadas, variantes deterministas por día+usuario)
+    pdf.ts              # exportWeekPDF (ventana imprimible)
+    routes.ts           # Tab + rutas
 components/
-  AuthScreen.tsx       # login/registro (arranca en modo login)
-  Onboarding.tsx       # asistente 5 pasos, se muestra si onboarding_completed=false
-  HealthCoachApp.tsx   # COMPONENTE PRINCIPAL (~1250 líneas, monolítico). Contiene render de las 5 pestañas.
-  layout/
-    AppLayout.tsx      # shell: header fijo + contenido scrolleable + bottom nav. Rutas nativas (History API), animación slide, scroll-to-top.
-    Header.tsx         # título de pestaña + avatar + indicador sync
-    BottomNavigation.tsx
-  today/
-    ActivityRings.tsx  # anillo(s) SVG estilo Apple Watch
-    WidgetRow.tsx      # YA NO SE USA (se puede borrar), quedó del diseño anterior
-supabase/schema.sql    # esquema de BD con RLS
-vercel.json            # rewrites SPA (para que /entreno no dé 404 al recargar)
+  AuthScreen.tsx, Onboarding.tsx
+  HealthCoachApp.tsx    # ~85 líneas: Provider + AppLayout + switch de tabs + sheets en overlay
+  layout/               # AppLayout (History API, slide, overlay, header border on-scroll), Header, BottomNavigation
+  ui/                   # BottomSheet (dialog+focus trap+Esc), Pill, IconBox, SettingRow, SegmentedControl, Skeleton, Toast, CountUp
+  tabs/                 # TodayTab, FoodTab(+food/*), TrainingTab(+training/*), ProgressTab(+progress/WeightChart), ProfileTab
+  sheets/               # WeightSheet, MealSheet, ProfileSheet (edición completa), ScheduleSheet, WorkoutOptionsSheet, ResetSheet
+  today/ActivityRings.tsx
+supabase/schema.sql     # esquema inicial · migration-v2.sql (ver arriba)
+public/sw.js            # service worker mínimo (CACHE_VERSION a mano) · manifest maskable
+vercel.json             # rewrites SPA
+.env.demo               # anula credenciales → modo demo (npm run dev:demo)
 ```
+
+## Reglas de arquitectura (no romper)
+
+- Los sheets/toast van SIEMPRE en el prop `overlay` de AppLayout, FUERA del contenedor con la animación `transform` (si no, el `position:absolute` se ancla mal). Todos los sheets se montan sobre `components/ui/BottomSheet`.
+- Fechas de calendario: solo helpers de `src/lib/dates.ts`. `toISOString().slice(0,10)` mezcla día UTC con hora local (bug histórico).
+- Los `name` de los ejercicios de torso-a y pierna NO se renombran: el historial de `exercise_sets` cruza por ese texto.
+- Desmarcar una serie BORRA su fila en BD (`deleteExerciseSetsForDay`); nunca dejarlo solo en UI (duplicaba series e inflaba stats).
+- `useCountUp` y el cierre de BottomSheet llevan fallback por temporizador: rAF/animationend se congelan en pestañas en segundo plano.
+- Estado: un solo hook `useAppState` + contexto. Solo hay un tab montado a la vez (`key={tab}` remonta).
 
 ## Navegación
 
-Rutas reales con **History API nativa** (no react-router — no se pudo instalar en el entorno donde se desarrolló, pero funciona igual). Cada pestaña tiene URL: `/hoy`, `/comida`, `/entreno`, `/progreso`, `/perfil`. Botón atrás del navegador funciona. Si se migra a react-router en el futuro, el cambio se localiza en `AppLayout.tsx` y `routes.ts`.
+History API nativa (sin react-router). URLs: `/hoy`, `/comida`, `/entreno`, `/progreso`, `/perfil`; botón atrás funciona. Los sheets NO entran en el history (se cierran con Esc/backdrop). Migración futura a react-router: localizada en `AppLayout.tsx` y `routes.ts`.
 
-## Estado de los sprints (roadmap V2)
+## Datos reales vs. limitaciones conocidas
 
-- **2.1 Layout/navegación** ✅ AppLayout, header fijo, bottom nav, safe areas, animación slide iOS, rutas, accesibilidad (aria-current, aria-label).
-- **2.2 Pantalla Hoy** ✅ Rediseñada por completo: hero de peso→objetivo (tarjeta oscura), foco de entreno con anillo, franja de métricas, plan del día, nota del coach.
-- **2.3 Comida** ⏳ PENDIENTE: PDF, lista de compra, vista semana. (La pantalla existe pero no se ha rehecho en V2.)
-- **2.4 Entreno** ⏳ PENDIENTE: biblioteca de ejercicios, vídeos, registro.
-- **2.5 Perfil/Estadísticas** ⏳ Parcial: "Progreso" ya usa datos reales; Perfil tiene botón de reset. Falta pulir ajustes y onboarding.
+Tras el rediseño V3 **no quedan placeholders**: coach por reglas con datos reales, semana dinámica, macros calculados, gráfico con escala/fechas reales, horarios editables, meal_count y exercise_types honrados, alergias y favoritos afectan al menú y a la compra.
 
-## Datos reales vs. placeholder (IMPORTANTE)
-
-El proyecto tenía muchos números hardcodeados que parecían reales. Se han ido conectando a datos de verdad, pero queda ojo:
-
-- **Real**: peso y su evolución, series de entreno (tabla `exercise_sets`), adherencia semanal, racha de pesajes, fuerza estimada (Epley), días entrenados, calorías/proteína objetivo (fórmulas en nutrition.ts).
-- **Plan de comida**: el menú se auto-escala al objetivo calórico (`personalizeWeek`), así que las kcal del menú ≈ objetivo siempre. NO hay tracking de consumo real (marcar comida como "hecha" no persiste nada). No presentar las kcal del menú como "progreso".
-- **Pendiente/placeholder conocido**: la nota del coach en Hoy es texto fijo. Algunos textos de ejercicios concretos siguen siendo de ejemplo.
+Limitaciones asumidas (documentadas, no bugs):
+- El menú base es 1 semana fija que se personaliza/escala; no hay generador infinito de recetas. "Regenerar" alterna base↔alternativa (cada plato tiene UNA alternativa).
+- Marcar comida "hecha" SÍ persiste (`meal_completions`) y alimenta al coach, pero no hay tracking de kcal consumidas reales.
+- Con pocos datos las stats devuelven `null` y la UI muestra "—" (mejor que inventar).
+- El clamp de escalado del menú es 0.72–1.35: objetivos calóricos extremos no se alcanzan solo escalando.
+- `excluded_meals` es por día-de-semana (aplica cada semana); `meal_completions` por fecha. Inconsistencia de modelo asumida.
+- Ejercicios nuevos (Torso B, Casa) sin vídeo aún (`videoUrl:""` → estado "no disponible" honesto; solo se usan vídeos con licencia de Commons).
 
 ## Bugs históricos ya resueltos (no reintroducir)
 
-- Modales que se abrían desplazados: los overlays (modales/toast) deben ir en el prop `overlay` de AppLayout, FUERA del contenedor con la animación `transform` (si no, el `position:absolute` se ancla mal).
-- Nav que se ocultaba en iOS: `.phone-shell` en móvil usa `height:100dvh` con fallback `100vh`, NO `min-height`.
-- Header que tapaba el título: `.screen-with-header` reserva `padding-top: max(80px, ...)`. El header `.app-header` es sólido (`background: var(--bg)`), no translúcido.
-- Fecha: la pantalla Comida abre en el día actual de la semana (`(new Date().getDay()+6)%7`), no en lunes fijo.
+- Overlays fuera del contenedor animado (ver Reglas de arquitectura).
+- Nav oculta en iOS: `.phone-shell` móvil usa `height:100dvh` con fallback `100vh`, NO `min-height`.
+- Header tapando título: `.screen-with-header` reserva `padding-top: max(80px, ...)`; `.app-header` sólido, con borde inferior activado por scroll.
+- Comida abre en el día actual (`weekdayMon0()`), no en lunes fijo.
+- Series duplicadas en `exercise_sets` (ver Reglas de arquitectura + migración v2).
 
 ## Notas de flujo
 
-- Al editar `HealthCoachApp.tsx` (monolítico), cuidado con imports de iconos lucide huérfanos (tsconfig no tiene noUnusedLocals, no avisa).
-- El `.env` (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY) NO está en git. Está solo en local.
-- Idea a futuro: partir HealthCoachApp.tsx en componentes por pestaña (hoy es demasiado grande).
+- tsconfig no tiene `noUnusedLocals`: para cazar imports muertos, `npx tsc --noEmit -p tsconfig.json --noUnusedLocals` puntualmente.
+- El `.env` (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY) NO está en git; `.env.demo` sí (vacío a propósito).
+- Al subir cambios que deban invalidar el caché offline, bump de `CACHE_VERSION` en `public/sw.js`.
