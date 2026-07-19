@@ -1,9 +1,9 @@
-import { ChevronRight, Clock3, Sparkles, TrendingDown, TrendingUp, TriangleAlert, Utensils } from "lucide-react";
-import ActivityRings from "../today/ActivityRings";
+import { Bike, Check, ChevronRight, Clock3, Dumbbell, Footprints, Moon, Sparkles, TrendingDown, TrendingUp, TriangleAlert, Utensils } from "lucide-react";
 import CountUp from "../ui/CountUp";
 import Skeleton from "../ui/Skeleton";
 import { useAppData } from "../../src/state/AppContext";
 import { weekdayMon0 } from "../../src/lib/dates";
+import { isCardioWorkout } from "../../src/lib/workouts";
 
 function currentTimeHHMM(): string {
   const now = new Date();
@@ -46,14 +46,21 @@ export default function TodayTab() {
     ? `${shownMeal.type}${schedule[shownMeal.type] ? ` · ${schedule[shownMeal.type]}` : ""}`
     : `${shownMeal.type} · última de hoy`;
 
-  const workoutRing = Math.min(1, todayTotalSets > 0 ? setsCompletedToday / todayTotalSets : 0);
+  const done = Math.min(setsCompletedToday, todayTotalSets);
+  const complete = todayTotalSets > 0 && done >= todayTotalSets;
   const workoutMeta = todayIsRestDay
-    ? "Hoy es descanso · toca este próximo"
+    ? "Hoy es descanso · toca para prepararlo"
     : setsCompletedToday === 0
       ? "Aún no has empezado"
-      : setsCompletedToday >= todayTotalSets
-        ? "¡Completado! 💪"
-        : `${setsCompletedToday}/${todayTotalSets} series hechas`;
+      : complete
+        ? "Sesión completada"
+        : `${done} de ${todayTotalSets} series hechas`;
+
+  const WorkoutIcon = todayIsRestDay
+    ? Moon
+    : isCardioWorkout(todayWorkout)
+      ? todayWorkout.modality === "Bici" ? Bike : Footprints
+      : Dumbbell;
 
   return (
     <>
@@ -88,15 +95,26 @@ export default function TodayTab() {
         </div>
       </button>
 
-      {/* FOCO DE HOY: el entreno del día con su anillo */}
-      <button className="today-focus pressable" onClick={() => app.handleTabChange("training")}>
-        <ActivityRings rings={[{ value: workoutRing, color: "var(--green)", label: "Entreno", detail: "" }]} size={72} showLegend={false} />
-        <div className="today-focus-copy">
-          <span className="today-focus-eyebrow">{todayIsRestDay ? "Próximo entreno" : "Entreno de hoy"}</span>
-          <span className="today-focus-title">{todayWorkout.name}</span>
-          <span className="today-focus-meta">{workoutMeta}</span>
+      {/* FOCO DE HOY: entreno del día con progreso segmentado (una marca por serie) */}
+      <button className={`today-focus pressable ${complete ? "is-complete" : ""}`} onClick={() => app.handleTabChange("training")}>
+        <div className="today-focus-top">
+          <div className={`today-focus-icon ${todayIsRestDay ? "rest" : ""}`}>
+            {complete ? <Check size={22} /> : <WorkoutIcon size={22} />}
+          </div>
+          <div className="today-focus-copy">
+            <span className="today-focus-eyebrow">{todayIsRestDay ? "Próximo entreno" : "Entreno de hoy"}</span>
+            <span className="today-focus-title">{todayWorkout.name}</span>
+            <span className="today-focus-meta">{workoutMeta}</span>
+          </div>
+          <ChevronRight size={20} className="today-focus-arrow" />
         </div>
-        <ChevronRight size={20} className="today-focus-arrow" />
+        {!todayIsRestDay && todayTotalSets > 0 && (
+          <div className="set-segments" aria-hidden="true">
+            {Array.from({ length: todayTotalSets }).map((_, index) => (
+              <span key={index} className={`set-segment ${index < done ? "on" : ""}`} />
+            ))}
+          </div>
+        )}
       </button>
 
       {/* MÉTRICAS */}

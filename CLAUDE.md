@@ -75,7 +75,7 @@ components/
   ui/                   # BottomSheet (dialog+focus trap+Esc), Pill, IconBox, SettingRow, SegmentedControl, Skeleton, Toast, CountUp
   tabs/                 # TodayTab, FoodTab(+food/*), TrainingTab(+training/*), ProgressTab(+progress/WeightChart), ProfileTab
   sheets/               # WeightSheet, MealSheet, ProfileSheet (edición completa), ScheduleSheet, WorkoutOptionsSheet, ResetSheet
-  today/ActivityRings.tsx
+  (today/ eliminado: el anillo se sustituyó por barra de progreso segmentada en TodayTab)
 supabase/schema.sql     # esquema inicial · migration-v2.sql (ver arriba)
 public/sw.js            # service worker mínimo (CACHE_VERSION a mano) · manifest maskable
 vercel.json             # rewrites SPA

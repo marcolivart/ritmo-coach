@@ -37,13 +37,17 @@
 }
 
 /* Transición entre pestañas, estilo iOS. */
-.screen-slide {
-  animation-duration: 0.32s;
-  animation-timing-function: var(--ease-out);
-  animation-fill-mode: both;
-}
-.screen-slide-forward { animation-name: slide-in-from-right; }
-.screen-slide-back { animation-name: slide-in-from-left; }
+/* Entrada en cascada: al montar cada pestaña (key={tab} la remonta) sus
+   bloques de primer nivel aparecen escalonados con un leve ascenso. Más
+   fluido y moderno que deslizar todo el bloque de golpe. */
+.screen-slide > * { animation: content-rise var(--dur-slow) var(--ease-out) both; }
+.screen-slide > *:nth-child(1) { animation-delay: 0.02s; }
+.screen-slide > *:nth-child(2) { animation-delay: 0.06s; }
+.screen-slide > *:nth-child(3) { animation-delay: 0.1s; }
+.screen-slide > *:nth-child(4) { animation-delay: 0.14s; }
+.screen-slide > *:nth-child(5) { animation-delay: 0.18s; }
+.screen-slide > *:nth-child(6) { animation-delay: 0.22s; }
+.screen-slide > *:nth-child(n+7) { animation-delay: 0.26s; }
 
 /* Dock flotante: separado de los bordes, la pestaña activa se expande en
    píldora con etiqueta; las demás son solo icono. */
