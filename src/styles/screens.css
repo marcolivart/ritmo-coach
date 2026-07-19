@@ -151,21 +151,27 @@
 .cardio-phase-name { font-size: var(--text-base); font-weight: var(--font-heavy); }
 .cardio-phase-detail { font-size: var(--text-xs); color: var(--muted-strong); margin-top: 3px; line-height: 1.4; }
 
-/* --- Progreso: gráfico de peso --- */
-.weight-chart { height: 150px; margin-top: 14px; position: relative; display: flex; align-items: flex-end; gap: var(--space-2); padding-bottom: 24px; }
-.chart-bar {
-  flex: 1;
-  min-width: 0;
-  background: linear-gradient(to top, var(--green), #8bd8a9);
-  border-radius: 9px 9px 3px 3px;
-  position: relative;
-  transition: height var(--dur-slow) var(--ease-out);
-}
-.chart-bar.latest { background: linear-gradient(to top, var(--green-deep), var(--green)); }
-.chart-bar span { position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%); font-size: 9px; color: var(--muted-strong); white-space: nowrap; }
-.chart-bar em { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: var(--text-2xs); font-weight: var(--font-heavy); font-style: normal; color: var(--ink); white-space: nowrap; }
-.chart-goal-line { position: absolute; left: 0; right: 0; border-top: 2px dashed rgba(31, 109, 72, 0.35); z-index: 1; pointer-events: none; }
-.chart-goal-line span { position: absolute; right: 0; top: -16px; font-size: 9px; font-weight: var(--font-heavy); color: var(--green); background: var(--surface-solid); padding: 1px 5px; border-radius: var(--radius-full); }
+/* --- Progreso: héroe oscuro con gráfico de línea --- */
+.progress-hero { padding: 20px 20px 16px; }
+/* El círculo decorativo lima de .card-dark competiría con la línea lima del
+   gráfico; aquí lo atenuamos y lo llevamos a una esquina. */
+.progress-hero::after { opacity: 0.14; right: -90px; bottom: -130px; }
+.progress-hero-eyebrow { font-size: var(--text-xs); font-weight: var(--font-heavy); letter-spacing: 0.6px; text-transform: uppercase; color: rgba(255, 255, 255, 0.55); }
+.progress-hero-number { font-size: var(--text-mega); font-weight: var(--font-black); letter-spacing: -2.2px; line-height: 1; margin: 10px 0 6px; position: relative; z-index: 1; }
+.progress-hero-number small { font-size: var(--text-xl); font-weight: var(--font-bold); letter-spacing: -0.5px; margin-left: 6px; color: rgba(255, 255, 255, 0.6); }
+.progress-hero-empty { position: relative; z-index: 1; margin: 12px 0 4px; font-size: var(--text-sm); line-height: 1.5; color: rgba(255, 255, 255, 0.7); }
+
+.weight-line-chart { display: block; width: 100%; height: auto; margin-top: 6px; position: relative; z-index: 1; overflow: visible; }
+.weight-line-chart .chart-line { fill: none; stroke: var(--lime); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.weight-line-chart .chart-dot { fill: var(--lime); }
+.weight-line-chart .chart-dot.latest { fill: #fff; stroke: var(--lime); stroke-width: 2.5; }
+.weight-line-chart .chart-goal { stroke: rgba(255, 255, 255, 0.28); stroke-width: 1.5; stroke-dasharray: 4 4; }
+.weight-line-chart .chart-goal-label { fill: rgba(255, 255, 255, 0.55); font-size: 10px; font-weight: var(--font-heavy); }
+.weight-line-chart .chart-value { fill: #fff; font-size: 12px; font-weight: var(--font-black); }
+.weight-line-chart .chart-date { fill: rgba(255, 255, 255, 0.5); font-size: 10px; font-weight: var(--font-bold); }
+
+/* --- Progreso: cabecera de las stat-cards --- */
+.stat-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; min-height: 38px; }
 
 /* --- Peso (input del sheet) --- */
 .weight-input-wrap { display: flex; align-items: baseline; justify-content: center; margin: 28px 0; }
@@ -205,11 +211,6 @@
 .guide-actions button { flex: 1; }
 .video-fallback { text-align: center; color: var(--muted-strong); font-size: var(--text-sm); line-height: 1.5; }
 
-.chart-head { display: flex; justify-content: space-between; align-items: baseline; }
-.chart-current { font-size: var(--text-3xl); font-weight: var(--font-black); letter-spacing: -1px; }
-.chart-delta { font-weight: var(--font-heavy); font-size: var(--text-sm); }
-.chart-delta.down { color: var(--green); }
-.chart-delta.up { color: var(--orange-deep); }
 
 .profile-hero { display: flex; gap: 14px; align-items: center; }
 .profile-avatar { width: 58px; height: 58px; font-size: var(--text-xl); }

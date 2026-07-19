@@ -2,7 +2,7 @@ import {
   Home,
   Utensils,
   Dumbbell,
-  BarChart3,
+  ChartLine,
   CircleUserRound,
   type LucideIcon,
 } from "lucide-react";
@@ -18,7 +18,7 @@ const navItems: NavItem[] = [
   { key: "today", label: "Hoy", icon: Home },
   { key: "food", label: "Comida", icon: Utensils },
   { key: "training", label: "Entreno", icon: Dumbbell },
-  { key: "progress", label: "Progreso", icon: BarChart3 },
+  { key: "progress", label: "Progreso", icon: ChartLine },
   { key: "profile", label: "Perfil", icon: CircleUserRound },
 ];
 
@@ -27,6 +27,8 @@ interface BottomNavigationProps {
   onTabChange: (tab: Tab) => void;
 }
 
+/** Dock flotante: la pestaña activa se expande en una píldora con su etiqueta;
+ *  las inactivas quedan como iconos. */
 export default function BottomNavigation({ activeTab, onTabChange }: BottomNavigationProps) {
   return (
     <nav className="bottom-nav" aria-label="Navegación principal">
@@ -36,15 +38,13 @@ export default function BottomNavigation({ activeTab, onTabChange }: BottomNavig
         return (
           <button
             key={item.key}
-            className={`nav-button ${isActive ? "active" : ""}`}
+            className={`nav-button pressable ${isActive ? "active" : ""}`}
             onClick={() => onTabChange(item.key)}
             aria-current={isActive ? "page" : undefined}
             aria-label={item.label}
           >
-            <span className="nav-icon-wrap" aria-hidden="true">
-              <Icon size={24} strokeWidth={isActive ? 2.6 : 2} />
-            </span>
-            {item.label}
+            <Icon size={22} strokeWidth={isActive ? 2.6 : 2} aria-hidden="true" />
+            <span className="nav-label">{item.label}</span>
           </button>
         );
       })}
