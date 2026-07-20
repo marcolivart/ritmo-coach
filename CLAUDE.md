@@ -69,6 +69,7 @@ src/
                          # + personalizeRollingWeek (ventana móvil hoy+6 días, para el selector de Comida)
                          # alergias∪bloqueados filtran, favoritos influyen
     eatingOut.ts        # sugerencias de bar/restaurante ("Voy a comer fuera" en MealSheet), emparejadas por tipo de comida y kcal/proteína objetivo
+    batchCooking.ts     # detecta ingredientes que se repiten ≥2 veces en la semana (pollo, arroz, legumbres…) → tarjeta "Cocina de una vez" en Compra
     groceries.ts        # lista de compra desde ingredientes reales
     workouts.ts         # catálogo: gym (Torso A/B, Pierna), casa, cardio (run/walk/bike). Unión StrengthWorkout|CardioWorkout
     plan.ts             # buildWeeklyPlan según exercise_types y training_days (mezcla fuerza+cardio)

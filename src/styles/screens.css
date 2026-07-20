@@ -264,6 +264,17 @@
 .eatout-name { font-size: var(--text-base); font-weight: var(--font-heavy); letter-spacing: -0.2px; }
 .eatout-macros { font-size: var(--text-sm); color: var(--green-deep); font-weight: var(--font-heavy); margin-top: 6px; }
 .eatout-tip { font-size: var(--text-sm); color: var(--muted-strong); line-height: 1.45; margin-top: 5px; }
+
+/* Cocina de una vez (batch cooking) */
+.batch-intro { margin: 0 0 6px; font-size: var(--text-sm); color: var(--muted-strong); line-height: 1.4; }
+.batch-tip { border-top: 1px solid var(--line); }
+.batch-tip:first-child { border-top: 0; }
+.batch-tip-head { display: flex; align-items: center; gap: 13px; width: 100%; padding: 12px 0; background: transparent; border: 0; cursor: pointer; text-align: left; color: inherit; }
+.batch-chevron { color: var(--muted); flex: 0 0 auto; transition: transform var(--dur-fast) var(--ease-out); }
+.batch-chevron.open { transform: rotate(180deg); }
+.batch-tip-body { padding: 0 0 14px 53px; }
+.batch-tip-text { margin: 0 0 10px; font-size: var(--text-sm); color: var(--muted-strong); line-height: 1.45; }
+.setting-value svg { vertical-align: -2px; margin-right: 3px; }
 .sheet-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 14px; }
 .ingredient-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex: 0 0 auto; margin: 0 8px; }
 
