@@ -24,6 +24,8 @@ export type CoachInput = {
   todayTotalSets: number;
   mealsDoneToday: number;
   mealsPlannedToday: number;
+  /** % de comidas de la semana (Lun→hoy) marcadas como hechas, o null sin datos. */
+  weeklyFoodAdherencePercent: number | null;
   hourOfDay: number;
   targetCalories: number;
 };
@@ -94,6 +96,17 @@ const RULES: Rule[] = [
     ],
   },
   {
+    id: "food-adherence-slipping",
+    priority: 72,
+    tone: "push",
+    // Solo a partir de mitad de semana: antes no hay muestra suficiente para hablar de "esta semana".
+    when: (i) => i.weeklyFoodAdherencePercent !== null && i.weeklyFoodAdherencePercent < 50 && i.weekdayMon0 >= 3,
+    variants: (i) => [
+      { title: "La comida se está quedando atrás", text: `Solo ${i.weeklyFoodAdherencePercent}% de las comidas de esta semana marcadas. No pasa nada por un par de días sueltos: retoma desde la próxima comida, no desde el lunes que viene.` },
+      { title: "Recupera el plan de comida", text: `Vas al ${i.weeklyFoodAdherencePercent}% esta semana. El plan funciona si lo sigues, no si es perfecto: marca la próxima comida y sigue desde ahí.` },
+    ],
+  },
+  {
     id: "workout-done-today",
     priority: 70,
     tone: "praise",
@@ -101,6 +114,16 @@ const RULES: Rule[] = [
     variants: () => [
       { title: "Entreno completado", text: "Todas las series de hoy registradas. Lo que toca ahora es simple: comer lo planificado y descansar. El músculo se construye fuera del gimnasio." },
       { title: "Trabajo hecho", text: "Sesión de hoy terminada y guardada. La constancia que estás registrando es exactamente lo que mueve la tendencia." },
+    ],
+  },
+  {
+    id: "food-adherence-strong",
+    priority: 68,
+    tone: "praise",
+    when: (i) => i.weeklyFoodAdherencePercent !== null && i.weeklyFoodAdherencePercent >= 85 && i.weekdayMon0 >= 2,
+    variants: (i) => [
+      { title: "Semana de comida sólida", text: `${i.weeklyFoodAdherencePercent}% de tus comidas marcadas esta semana. Esto es lo que realmente mueve la báscula, más que cualquier entreno suelto.` },
+      { title: "Constancia con la comida", text: `Llevas el ${i.weeklyFoodAdherencePercent}% del plan de comida cumplido esta semana. Sigue así: la dieta medida solo funciona si se sigue, y la estás siguiendo.` },
     ],
   },
   {

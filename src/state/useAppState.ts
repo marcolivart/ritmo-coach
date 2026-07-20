@@ -179,6 +179,24 @@ export function useAppState({ userId, profile, onProfileChange, onLogout }: AppS
     return groceries.filter((item) => !avoidLower.some((food) => item.name.toLowerCase().includes(food)));
   }, [groceries, avoidFoods]);
 
+  /** % de comidas marcadas como hechas esta semana natural (Lun→hoy), sobre
+   *  las comidas ya planificadas hasta hoy (los días futuros de la semana no
+   *  cuentan: aún no han tenido ocasión de completarse). Es el indicador de
+   *  adherencia a la comida — el que faltaba en Progreso, centrado siempre en
+   *  entreno pese a que la comida es el foco real de la app. */
+  const weeklyFoodAdherencePercent = useMemo(() => {
+    const monday = mondayISO();
+    const today = todayISO();
+    const plannedSoFar = personalizedWeek
+      .filter((day) => day.dateISO <= today)
+      .reduce((sum, day) => sum + day.meals.length, 0);
+    if (plannedSoFar === 0) return null;
+    const doneSoFar = Array.from(completions)
+      .filter((key) => key.slice(0, 10) >= monday && key.slice(0, 10) <= today)
+      .length;
+    return Math.round(Math.min(1, doneSoFar / plannedSoFar) * 100);
+  }, [personalizedWeek, completions]);
+
   // ---------- Carga inicial ----------
   useEffect(() => {
     if (!userId) return;
@@ -711,12 +729,14 @@ export function useAppState({ userId, profile, onProfileChange, onLogout }: AppS
     todayTotalSets,
     mealsDoneToday,
     mealsPlannedToday: todayDayPlan.meals.length,
+    weeklyFoodAdherencePercent,
     hourOfDay: new Date().getHours(),
     targetCalories: estimatedCalories,
   }), [
     todayIndex, effectiveProfile, currentWeight, weeklyWeightDeltaKg, weighInStreak, weightDue,
     workoutDaysThisWeek, strengthTrend, todayWorkout.name, todayPlan.isRestDay,
     setsCompletedToday, todayTotalSets, mealsDoneToday, todayDayPlan.meals.length, estimatedCalories,
+    weeklyFoodAdherencePercent,
   ]);
 
   return {
@@ -774,6 +794,7 @@ export function useAppState({ userId, profile, onProfileChange, onLogout }: AppS
     isDayRegenerated,
     completions,
     toggleMealDone,
+    weeklyFoodAdherencePercent,
     groceries: visibleGroceries,
     toggleGrocery,
     exportPDF,

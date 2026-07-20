@@ -1,4 +1,4 @@
-import { Dumbbell, Flame, Plus, Scale, TrendingDown, TrendingUp } from "lucide-react";
+import { Dumbbell, Flame, Plus, Scale, TrendingDown, TrendingUp, Utensils } from "lucide-react";
 import IconBox from "../ui/IconBox";
 import Pill from "../ui/Pill";
 import Skeleton from "../ui/Skeleton";
@@ -9,7 +9,7 @@ export default function ProgressTab() {
   const app = useAppData();
   const {
     profile, currentWeight, totalWeightChangeKg, weightLogs, weeklyWeightDeltaKg,
-    weeklyAdherencePercent, workoutDaysThisWeek, workoutDaysLast6Weeks,
+    weeklyAdherencePercent, weeklyFoodAdherencePercent, workoutDaysThisWeek, workoutDaysLast6Weeks,
     strengthTrend, weighInStreak, initialLoading,
   } = app;
 
@@ -25,6 +25,7 @@ export default function ProgressTab() {
   }
 
   const trendingDown = weeklyWeightDeltaKg !== null && weeklyWeightDeltaKg <= 0;
+  const foodOnTrack = weeklyFoodAdherencePercent !== null && weeklyFoodAdherencePercent >= 80;
 
   return (
     <>
@@ -57,6 +58,23 @@ export default function ProgressTab() {
         )}
       </div>
 
+      {/* COMIDA CUMPLIDA — el indicador que más importa aquí: es la app de comida, no de gimnasio */}
+      <div className="card stat-food-card">
+        <div className="stat-food-head">
+          <IconBox size="sm" tone="soft"><Utensils size={18} /></IconBox>
+          <div className="stat-food-copy">
+            <div className="stat-food-label">Comida cumplida esta semana</div>
+            <div className="stat-food-value">{weeklyFoodAdherencePercent === null ? "—" : `${weeklyFoodAdherencePercent}%`}</div>
+          </div>
+          {foodOnTrack && <Pill tone="green">En racha</Pill>}
+        </div>
+        {weeklyFoodAdherencePercent !== null && (
+          <div className="stat-progress-track">
+            <div className="stat-progress-fill" style={{ width: `${weeklyFoodAdherencePercent}%` }} />
+          </div>
+        )}
+      </div>
+
       {/* MÉTRICAS con contexto */}
       <div className="stat-grid">
         <div className="stat-card">
@@ -68,11 +86,11 @@ export default function ProgressTab() {
         </div>
         <div className="stat-card">
           <div className="stat-top">
-            <IconBox size="sm" tone="lime"><Flame size={18} /></IconBox>
+            <IconBox size="sm" tone="lime"><Dumbbell size={18} /></IconBox>
             {weeklyAdherencePercent !== null && weeklyAdherencePercent >= 100 && <Pill tone="green">✓</Pill>}
           </div>
           <div className="stat-value">{weeklyAdherencePercent === null ? "—" : `${weeklyAdherencePercent}%`}</div>
-          <div className="stat-label">Adherencia semanal</div>
+          <div className="stat-label">Entreno semanal</div>
         </div>
         <div className="stat-card">
           <div className="stat-top">
@@ -93,6 +111,14 @@ export default function ProgressTab() {
       {/* LECTURA SEMANAL con veredicto claro */}
       <div className="section-header"><h2 className="section-title">Lectura semanal</h2></div>
       <div className="card">
+        <div className="meal-row">
+          <IconBox><Utensils size={20} /></IconBox>
+          <div className="meal-copy">
+            <div className="meal-name">{weeklyFoodAdherencePercent === null ? "Aún sin comidas planificadas" : `${weeklyFoodAdherencePercent}% de tus comidas cumplidas`}</div>
+            <div className="meal-meta">{weeklyFoodAdherencePercent === null ? "Se calcula con las comidas que marques como hechas." : "Lo que más pesa en tu progreso real."}</div>
+          </div>
+          {weeklyFoodAdherencePercent === null ? <Pill tone="soft">—</Pill> : foodOnTrack ? <Pill tone="green">En racha</Pill> : <Pill tone="orange">A por ello</Pill>}
+        </div>
         <div className="meal-row">
           <IconBox><Scale size={20} /></IconBox>
           <div className="meal-copy">

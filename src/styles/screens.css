@@ -200,6 +200,15 @@
 /* --- Progreso: cabecera de las stat-cards --- */
 .stat-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; min-height: 38px; }
 
+/* --- Progreso: comida cumplida — tarjeta destacada, comida es el foco --- */
+.stat-food-card { margin-top: 14px; background: var(--green-tint); border-color: rgba(31, 109, 72, 0.12); }
+.stat-food-head { display: flex; align-items: center; gap: 12px; }
+.stat-food-copy { flex: 1; min-width: 0; }
+.stat-food-label { font-size: var(--text-sm); font-weight: var(--font-bold); color: var(--muted-strong); }
+.stat-food-value { font-size: var(--text-2xl); font-weight: var(--font-black); letter-spacing: -0.7px; color: var(--green-deep); margin-top: 1px; }
+.stat-progress-track { height: 7px; border-radius: var(--radius-full); background: rgba(31, 109, 72, 0.12); overflow: hidden; margin-top: 14px; }
+.stat-progress-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--green), var(--green-deep)); transition: width var(--dur-slow) var(--ease-out); }
+
 /* --- Peso (input del sheet) --- */
 .weight-input-wrap { display: flex; align-items: baseline; justify-content: center; margin: 28px 0; }
 .weight-input {

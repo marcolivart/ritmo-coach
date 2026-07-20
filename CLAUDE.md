@@ -110,7 +110,7 @@ Tras el rediseño V3 **no quedan placeholders**: coach por reglas con datos real
 Limitaciones asumidas (documentadas, no bugs):
 - El menú rota sobre 3 semanas fijas (`menuWeeks`) que se personalizan/escalan; no hay generador infinito de recetas. "Regenerar" alterna base↔alternativa (cada plato tiene UNA alternativa) dentro de la semana activa.
 - El selector de días de Comida es una ventana móvil (hoy + 6 días, `personalizeRollingWeek`); la compra y el PDF siguen sobre la semana natural Lun-Dom (`personalizeWeek`) porque así se compra.
-- Marcar comida "hecha" SÍ persiste (`meal_completions`) y alimenta al coach, pero no hay tracking de kcal consumidas reales.
+- Marcar comida "hecha" SÍ persiste (`meal_completions`) y alimenta al coach y a Progreso (`weeklyFoodAdherencePercent` en `useAppState.ts`, semana natural Lun→hoy), pero no hay tracking de kcal consumidas reales.
 - Con pocos datos las stats devuelven `null` y la UI muestra "—" (mejor que inventar).
 - El clamp de escalado del menú es 0.72–1.35: objetivos calóricos extremos no se alcanzan solo escalando.
 - `excluded_meals` es por día-de-semana (aplica cada semana); `meal_completions` por fecha. Inconsistencia de modelo asumida.
