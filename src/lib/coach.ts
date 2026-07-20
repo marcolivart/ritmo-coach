@@ -26,6 +26,8 @@ export type CoachInput = {
   mealsPlannedToday: number;
   /** % de comidas de la semana (Lun→hoy) marcadas como hechas, o null sin datos. */
   weeklyFoodAdherencePercent: number | null;
+  /** Horas de sueño registradas anoche, o null si no se ha registrado hoy. */
+  sleepHoursLastNight: number | null;
   hourOfDay: number;
   targetCalories: number;
 };
@@ -174,6 +176,16 @@ const RULES: Rule[] = [
     variants: (i) => [
       { title: `${i.weighInStreak} semanas de racha`, text: "Llevas pesándote cada semana sin fallar. Ese hábito silencioso es el que hace que todo lo demás funcione." },
       { title: "Racha intacta", text: `${i.weighInStreak} semanas seguidas con pesaje. Los datos consistentes son los que permiten ajustar tu plan con criterio.` },
+    ],
+  },
+  {
+    id: "low-sleep",
+    priority: 42,
+    tone: "info",
+    when: (i) => i.sleepHoursLastNight !== null && i.sleepHoursLastNight < 6,
+    variants: (i) => [
+      { title: "Poco descanso anoche", text: `${i.sleepHoursLastNight!.toFixed(1)} h de sueño. Hoy el cuerpo pide menos exigencia: prioriza la proteína y no fuerces el entreno si no toca.` },
+      { title: "Dormiste poco", text: "Con menos de 6 horas de sueño el hambre y las ganas de moverte bajan igual. No es fuerza de voluntad, es fisiología: hoy cuida el descanso más que el resto." },
     ],
   },
   {

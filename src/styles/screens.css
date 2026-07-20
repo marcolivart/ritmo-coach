@@ -104,6 +104,30 @@
 .metric-label { font-size: var(--text-2xs); font-weight: var(--font-bold); color: var(--muted-strong); margin-top: 5px; line-height: 1.2; }
 .metric-divider { width: 1px; background: var(--line); align-self: center; height: 38px; flex: 0 0 auto; }
 
+/* --- Hoy: bienestar (agua/sueño) — deliberadamente pequeño y silencioso,
+   no debe competir visualmente con comida ni entreno. --- */
+.wellness-card { padding: 13px var(--space-4); margin-top: 14px; }
+.wellness-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.wellness-sleep { margin-top: 14px; }
+.wellness-label { display: flex; align-items: center; gap: 6px; font-size: var(--text-sm); font-weight: var(--font-bold); color: var(--muted-strong); }
+.wellness-actions { display: flex; align-items: center; gap: 10px; }
+.wellness-value { font-size: var(--text-sm); font-weight: var(--font-heavy); color: var(--ink); min-width: 84px; text-align: center; }
+.wellness-step-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--surface-solid);
+  color: var(--muted-strong);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.wellness-step-btn.accent { background: var(--green-tint); color: var(--green-deep); border-color: transparent; }
+.wellness-step-btn:disabled { opacity: 0.4; cursor: default; }
+.wellness-card .stat-progress-track { margin-top: 8px; }
+
 /* --- Hoy: tarjetas de plan --- */
 .plan-card {
   display: flex;

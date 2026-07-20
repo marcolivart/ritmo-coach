@@ -51,6 +51,17 @@ export type WeightLog = {
   created_at?: string;
 };
 
+/** Registro diario de bienestar (agua/sueño). Tabla de migration-v3.sql. */
+export type DailyWellness = {
+  id: number;
+  user_id: string;
+  log_date: string;
+  water_ml: number;
+  sleep_hours: number | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
 export type DatabaseGroceryItem = {
   id: number;
   user_id: string;

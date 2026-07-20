@@ -14,6 +14,13 @@ function getAge(birthDate: string | null): number {
   return Math.max(18, Math.min(age, 90));
 }
 
+/** Objetivo diario de agua: ~35 ml/kg (referencia estándar de hidratación),
+ *  redondeado al vaso de 250 ml más cercano para que encaje con el widget. */
+export function estimateHydrationTargetMl(profile: Profile): number {
+  const raw = profile.current_weight_kg * 35;
+  return Math.max(1500, Math.round(raw / 250) * 250);
+}
+
 export function estimateDailyCalories(profile: Profile): number {
   const age = getAge(profile.birth_date);
   const sexConstant = profile.sex === "male" ? 5 : profile.sex === "female" ? -161 : -78;

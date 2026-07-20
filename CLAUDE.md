@@ -34,9 +34,11 @@ Deploy: `git add . && git commit -m "..." && git push` → Vercel despliega solo
 Producción: https://ritmo-coach.vercel.app/
 Repo: https://github.com/marcolivart/ritmo-coach
 
-## Migración pendiente de ejecutar (IMPORTANTE)
+## Migraciones pendientes de ejecutar
 
-`supabase/migration-v2.sql` debe ejecutarse en Supabase > SQL Editor. Aporta: unique index en `exercise_sets` (anti-duplicados), unicidad de compra con categoría, columna `profiles.schedule` (horarios) y RPC `reset_user_data` transaccional. **La app funciona sin ella** (fallbacks por código de error en `database.ts`), pero hasta entonces los horarios no persisten en BD y el reset no es atómico.
+`supabase/migration-v2.sql` — ✅ ya ejecutada por Marc (2026-07-20).
+
+`supabase/migration-v3.sql` — PENDIENTE. Añade la tabla `daily_wellness` (agua/sueño del widget de Hoy) y actualiza `reset_user_data` para incluirla. **La app funciona sin ella** (fallback por código de error `PGRST205`/`42P01` en `database.ts`: el widget sigue operativo, solo que agua/sueño no persisten entre sesiones hasta que se ejecute).
 
 ## Sistema de diseño (src/styles/)
 
@@ -61,9 +63,9 @@ src/
     AppContext.tsx      # AppDataProvider + useAppData()
   lib/
     supabase.ts         # cliente (persistSession)
-    database.ts         # queries + fallbacks pre-migración (códigos de error PGRST202/42P10/42703…)
+    database.ts         # queries + fallbacks pre-migración (códigos de error PGRST202/42P10/42703/PGRST205…)
     dates.ts            # ÚNICA fuente de fechas (local-safe). PROHIBIDO toISOString().slice(0,10) para días
-    nutrition.ts        # kcal (Mifflin-St Jeor), proteína (sobre peso de referencia, no siempre el actual), macroSplit real, isWeightDue, racha
+    nutrition.ts        # kcal (Mifflin-St Jeor), proteína (sobre peso de referencia, no siempre el actual), macroSplit real, isWeightDue, racha, estimateHydrationTargetMl (35 ml/kg)
     menu.ts             # 3 semanas de menú que ROTAN (menuWeeks + menuWeekIndex, determinista por semana natural)
                          # applyMealCount (3/4/5) + personalizeWeek (semana natural Lun-Dom, para compra/PDF)
                          # + personalizeRollingWeek (ventana móvil hoy+6 días, para el selector de Comida)
@@ -74,7 +76,7 @@ src/
     workouts.ts         # catálogo: gym (Torso A/B, Pierna), casa, cardio (run/walk/bike). Unión StrengthWorkout|CardioWorkout
     plan.ts             # buildWeeklyPlan según exercise_types y training_days (mezcla fuerza+cardio)
     stats.ts            # 1RM Epley, adherencia, tendencia fuerza
-    coach.ts            # motor del coach POR REGLAS (~14 reglas priorizadas, variantes deterministas por día+usuario)
+    coach.ts            # motor del coach POR REGLAS (~15 reglas priorizadas, variantes deterministas por día+usuario)
     pdf.ts              # exportWeekPDF (ventana imprimible)
     routes.ts           # Tab + rutas
 components/
@@ -82,10 +84,9 @@ components/
   HealthCoachApp.tsx    # ~85 líneas: Provider + AppLayout + switch de tabs + sheets en overlay
   layout/               # AppLayout (History API, slide, overlay, header border on-scroll), Header, BottomNavigation
   ui/                   # BottomSheet (dialog+focus trap+Esc), Pill, IconBox, SettingRow, SegmentedControl, Skeleton, Toast, CountUp
-  tabs/                 # TodayTab, FoodTab(+food/*), TrainingTab(+training/*), ProgressTab(+progress/WeightChart), ProfileTab
+  tabs/                 # TodayTab(+today/WellnessRow), FoodTab(+food/*), TrainingTab(+training/*), ProgressTab(+progress/WeightChart), ProfileTab
   sheets/               # WeightSheet, MealSheet, ProfileSheet (edición completa), ScheduleSheet, WorkoutOptionsSheet, ResetSheet
-  (today/ eliminado: el anillo se sustituyó por barra de progreso segmentada en TodayTab)
-supabase/schema.sql     # esquema inicial · migration-v2.sql (ver arriba)
+supabase/schema.sql     # esquema inicial · migration-v2.sql · migration-v3.sql (ver arriba)
 public/sw.js            # service worker mínimo (CACHE_VERSION a mano) · manifest maskable
 vercel.json             # rewrites SPA
 .env.demo               # anula credenciales → modo demo (npm run dev:demo)

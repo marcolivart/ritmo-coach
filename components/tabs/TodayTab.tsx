@@ -1,6 +1,7 @@
 import { Bike, Check, ChevronRight, Clock3, Dumbbell, Footprints, Moon, Sparkles, TrendingDown, TrendingUp, TriangleAlert, Utensils } from "lucide-react";
 import CountUp from "../ui/CountUp";
 import Skeleton from "../ui/Skeleton";
+import WellnessRow from "./today/WellnessRow";
 import { useAppData } from "../../src/state/AppContext";
 import { weekdayMon0 } from "../../src/lib/dates";
 import { isCardioWorkout } from "../../src/lib/workouts";
@@ -167,6 +168,9 @@ export default function TodayTab() {
           <span className="metric-label">racha pesaje</span>
         </div>
       </div>
+
+      {/* BIENESTAR — motivación ligera y secundaria, no compite con comida ni entreno */}
+      <WellnessRow />
 
       {/* MENSAJE DEL COACH — generado con tus datos reales, cambia cada día */}
       <div className={`coach-note ${coach.tone === "warn" ? "tone-warn" : ""}`}>

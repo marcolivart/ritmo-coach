@@ -13,6 +13,7 @@ import {
   getGroceries,
   getMealCompletions,
   getWeightLogs,
+  getWellnessToday,
   removeExcludedMeal,
   removeFoodPreference,
   removeMealCompletion,
@@ -20,13 +21,14 @@ import {
   saveExerciseSet,
   saveProfile,
   saveWeightLog,
+  saveWellnessPatch,
   seedGroceries,
   setGroceryChecked,
 } from "../lib/database";
 import { addDaysISO, mondayISO, todayISO, weekdayMon0, weeksAgoMondayISO, weekRangeLabel } from "../lib/dates";
 import { buildGroceryListFromWeek, type GroceryItem } from "../lib/groceries";
 import { applyMealCount, calculateDailyTotals, mealKey, personalizeRollingWeek, personalizeWeek, week, type DayPlan, type Meal } from "../lib/menu";
-import { estimateDailyCalories, estimateDailyProtein, formatWeighingDay, isWeightDue, macroSplit, weighInStreakWeeks } from "../lib/nutrition";
+import { estimateDailyCalories, estimateDailyProtein, estimateHydrationTargetMl, formatWeighingDay, isWeightDue, macroSplit, weighInStreakWeeks } from "../lib/nutrition";
 import { exportWeekPDF } from "../lib/pdf";
 import { buildWeeklyPlan, todayPlannedWorkoutId, type PlannedDay } from "../lib/plan";
 import { distinctTrainingDays, latestSetsByExercise, strengthTrendPercent, type ExerciseSetRecord } from "../lib/stats";
@@ -75,6 +77,7 @@ type DemoSnapshot = {
   groceries?: GroceryItem[];
   excludedMealKeys?: string[];
   completions?: string[];
+  wellnessByDate?: Record<string, { water_ml: number; sleep_hours: number | null }>;
 };
 
 function readDemoSnapshot(): DemoSnapshot {
@@ -137,6 +140,9 @@ export function useAppState({ userId, profile, onProfileChange, onLogout }: AppS
   const [completions, setCompletions] = useState<Set<string>>(() => new Set(demoSeed.completions ?? []));
   const [groceries, setGroceries] = useState<GroceryItem[]>(() => demoSeed.groceries ?? []);
   const [recentExerciseSets, setRecentExerciseSets] = useState<ExerciseSetRecord[]>([]);
+  const [wellnessToday, setWellnessToday] = useState<{ water_ml: number; sleep_hours: number | null }>(
+    () => demoSeed.wellnessByDate?.[todayISO()] ?? { water_ml: 0, sleep_hours: null },
+  );
 
   // ---------- Sheets ----------
   const [weightSheetOpen, setWeightSheetOpen] = useState(false);
@@ -213,8 +219,9 @@ export function useAppState({ userId, profile, onProfileChange, onLogout }: AppS
       getExerciseSetsInRange(userId, `${rangeStart}T00:00:00`, `${todayISO()}T23:59:59`),
       getExcludedMeals(userId),
       getMealCompletions(userId, weekStart, weekEnd),
+      getWellnessToday(userId, todayISO()),
     ])
-      .then(async ([preferences, logs, remoteGroceries, exerciseSets, excludedMeals, mealCompletions]) => {
+      .then(async ([preferences, logs, remoteGroceries, exerciseSets, excludedMeals, mealCompletions, wellness]) => {
         if (cancelled) return;
         setPreferenceRecords(preferences);
         const blockedNames = preferences.filter((item) => item.restriction_type === "blocked").map((item) => item.food_name);
@@ -229,6 +236,7 @@ export function useAppState({ userId, profile, onProfileChange, onLogout }: AppS
         const excludedKeysSet = new Set(excludedMeals.map((item) => item.meal_key));
         setExcludedMealKeys(excludedKeysSet);
         setCompletions(new Set(mealCompletions.map((item) => `${item.completed_date}-${item.meal_type}`)));
+        setWellnessToday(wellness ? { water_ml: wellness.water_ml, sleep_hours: wellness.sleep_hours } : { water_ml: 0, sleep_hours: null });
 
         const personalized = personalizeWeek(effectiveProfile, excludedKeysSet, [...blockedNames, ...allergyNames], favoriteNames);
         const groceryItems = buildGroceryListFromWeek(personalized, [...blockedNames, ...allergyNames])
@@ -272,10 +280,11 @@ export function useAppState({ userId, profile, onProfileChange, onLogout }: AppS
         groceries,
         excludedMealKeys: Array.from(excludedMealKeys),
         completions: Array.from(completions),
+        wellnessByDate: { ...(demoSeed.wellnessByDate ?? {}), [todayISO()]: wellnessToday },
       };
       localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(snapshot));
     } catch { /* Algunos entornos bloquean localStorage. */ }
-  }, [userId, demoProfile, weightLogs, blockedFoods, favoriteFoods, allergies, groceries, excludedMealKeys, completions]);
+  }, [userId, demoProfile, weightLogs, blockedFoods, favoriteFoods, allergies, groceries, excludedMealKeys, completions, wellnessToday, demoSeed]);
 
   // ---------- Perfil ----------
   const saveProfilePatch = useCallback(async (patch: Partial<Profile>) => {
@@ -354,6 +363,43 @@ export function useAppState({ userId, profile, onProfileChange, onLogout }: AppS
       setSyncing(false);
     }
   }, [userId, effectiveProfile, onProfileChange, toastError]);
+
+  // ---------- Bienestar (agua/sueño) ----------
+  // Motivación secundaria y ligera: no compite visualmente con comida ni entreno.
+  const HYDRATION_STEP_ML = 250;
+  const hydrationTargetMl = useMemo(() => estimateHydrationTargetMl(effectiveProfile), [effectiveProfile]);
+  const hydrationGlasses = Math.max(1, Math.round(hydrationTargetMl / HYDRATION_STEP_ML));
+  const waterGlasses = Math.round(wellnessToday.water_ml / HYDRATION_STEP_ML);
+
+  // Refs con el último valor: dos taps rápidos en "+" disparan el handler dos
+  // veces en el mismo tick, y leer wellnessToday por closure daría el mismo
+  // valor obsoleto en ambas llamadas (solo sumaría un vaso, no dos).
+  const waterMlRef = useRef(wellnessToday.water_ml);
+  useEffect(() => { waterMlRef.current = wellnessToday.water_ml; }, [wellnessToday.water_ml]);
+  const sleepHoursRef = useRef(wellnessToday.sleep_hours);
+  useEffect(() => { sleepHoursRef.current = wellnessToday.sleep_hours; }, [wellnessToday.sleep_hours]);
+
+  const adjustWater = useCallback((deltaGlasses: number) => {
+    const currentGlasses = Math.round(waterMlRef.current / HYDRATION_STEP_ML);
+    const nextMl = Math.max(0, Math.min(hydrationGlasses, currentGlasses + deltaGlasses)) * HYDRATION_STEP_ML;
+    waterMlRef.current = nextMl;
+    setWellnessToday((prev) => ({ ...prev, water_ml: nextMl }));
+    if (!userId) return;
+    saveWellnessPatch(userId, todayISO(), { water_ml: nextMl }).catch((caught) => {
+      toastError(caught, "No se ha podido guardar el agua");
+    });
+  }, [userId, hydrationGlasses, toastError]);
+
+  const adjustSleepHours = useCallback((deltaHours: number) => {
+    const current = sleepHoursRef.current ?? 7;
+    const next = Math.round(Math.max(0, Math.min(14, current + deltaHours)) * 2) / 2;
+    sleepHoursRef.current = next;
+    setWellnessToday((prev) => ({ ...prev, sleep_hours: next }));
+    if (!userId) return;
+    saveWellnessPatch(userId, todayISO(), { sleep_hours: next }).catch((caught) => {
+      toastError(caught, "No se ha podido guardar el sueño");
+    });
+  }, [userId, toastError]);
 
   // ---------- Preferencias de comida ----------
   const addPreference = useCallback(async (raw: string, type: PreferenceType) => {
@@ -730,13 +776,14 @@ export function useAppState({ userId, profile, onProfileChange, onLogout }: AppS
     mealsDoneToday,
     mealsPlannedToday: todayDayPlan.meals.length,
     weeklyFoodAdherencePercent,
+    sleepHoursLastNight: wellnessToday.sleep_hours,
     hourOfDay: new Date().getHours(),
     targetCalories: estimatedCalories,
   }), [
     todayIndex, effectiveProfile, currentWeight, weeklyWeightDeltaKg, weighInStreak, weightDue,
     workoutDaysThisWeek, strengthTrend, todayWorkout.name, todayPlan.isRestDay,
     setsCompletedToday, todayTotalSets, mealsDoneToday, todayDayPlan.meals.length, estimatedCalories,
-    weeklyFoodAdherencePercent,
+    weeklyFoodAdherencePercent, wellnessToday.sleep_hours,
   ]);
 
   return {
@@ -774,6 +821,14 @@ export function useAppState({ userId, profile, onProfileChange, onLogout }: AppS
     weighInStreak,
     weightDue,
     saveWeight,
+
+    // bienestar
+    wellnessToday,
+    hydrationTargetMl,
+    hydrationGlasses,
+    waterGlasses,
+    adjustWater,
+    adjustSleepHours,
 
     // comida
     blockedFoods,

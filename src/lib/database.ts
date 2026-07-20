@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
 import { localDayRange } from "./dates";
 import type {
+  DailyWellness,
   DatabaseExcludedMeal,
   DatabaseGroceryItem,
   DatabaseMealCompletion,
@@ -27,6 +28,9 @@ function raise(error: DbError | null) {
 const MISSING_FUNCTION_CODES = new Set(["PGRST202", "42883"]);
 const MISSING_CONFLICT_TARGET_CODE = "42P10";
 export const MISSING_COLUMN_CODES = new Set(["PGRST204", "42703"]);
+/** La migración v3 añade la tabla daily_wellness. Sin ella, el widget de
+ *  bienestar (agua/sueño) sigue funcionando solo en memoria de la sesión. */
+const MISSING_TABLE_CODES = new Set(["PGRST205", "42P01"]);
 
 export async function getProfile(userId: string): Promise<Profile | null> {
   const { data, error } = await client().from("profiles").select("*").eq("id", userId).maybeSingle();
@@ -259,6 +263,43 @@ export async function getExerciseSetsInRange(
   return (data ?? []) as { performed_at: string; weight_kg: number | null; repetitions: number | null; exercise_name: string; set_number: number | null }[];
 }
 
+/** Registro de bienestar (agua/sueño) de un día concreto, o null si aún no
+ *  hay nada guardado ese día (o si la tabla no existe: pre-migración v3). */
+export async function getWellnessToday(userId: string, dateISO: string): Promise<DailyWellness | null> {
+  const { data, error } = await client()
+    .from("daily_wellness")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("log_date", dateISO)
+    .maybeSingle();
+  if (error && MISSING_TABLE_CODES.has(error.code ?? "")) return null;
+  raise(error);
+  return data as DailyWellness | null;
+}
+
+/** Guarda agua y/o sueño de un día. El upsert de PostgREST con merge-duplicates
+ *  solo toca las columnas presentes en el payload, así que se puede actualizar
+ *  un campo sin pisar el otro. Pre-migración v3 (tabla ausente) degrada en
+ *  silencio: el widget sigue funcionando, solo que no persiste entre sesiones. */
+export async function saveWellnessPatch(
+  userId: string,
+  dateISO: string,
+  patch: { water_ml?: number; sleep_hours?: number | null },
+): Promise<DailyWellness> {
+  const payload = { user_id: userId, log_date: dateISO, ...patch };
+  const { data, error } = await client()
+    .from("daily_wellness")
+    .upsert(payload, { onConflict: "user_id,log_date" })
+    .select()
+    .single();
+  if (!error) return data as DailyWellness;
+  if (MISSING_TABLE_CODES.has(error.code ?? "")) {
+    return { id: -1, user_id: userId, log_date: dateISO, water_ml: patch.water_ml ?? 0, sleep_hours: patch.sleep_hours ?? null };
+  }
+  raise(error);
+  throw new Error("unreachable");
+}
+
 /** Borra todo el historial (peso, entrenos, preferencias, lista de la compra)
  *  y reinicia el perfil a los valores por defecto, como si el usuario
  *  volviera a registrarse. Acción irreversible. */
@@ -274,6 +315,9 @@ export async function resetUserData(userId: string): Promise<Profile> {
     const { error } = await client().from(table).delete().eq("user_id", userId);
     raise(error);
   }
+  // daily_wellness es de la migración v3; puede no existir todavía.
+  const wellnessDelete = await client().from("daily_wellness").delete().eq("user_id", userId);
+  if (wellnessDelete.error && !MISSING_TABLE_CODES.has(wellnessDelete.error.code ?? "")) raise(wellnessDelete.error);
 
   const { data, error } = await client()
     .from("profiles")
