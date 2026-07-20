@@ -95,7 +95,35 @@ export default function TodayTab() {
         </div>
       </button>
 
-      {/* FOCO DE HOY: entreno del día con progreso segmentado (una marca por serie) */}
+      {/* TU COMIDA DE HOY — protagonista: acceso al día y a la próxima comida */}
+      <div className="section-header">
+        <h2 className="section-title">Tu comida de hoy</h2>
+        <button className="text-button pressable" onClick={() => app.goToFood("week")}>Ver semana</button>
+      </div>
+
+      <button className="plan-card plan-card-food pressable" onClick={() => app.goToFood("week")}>
+        <div className="plan-card-icon"><Utensils size={20} /></div>
+        <div className="plan-card-body">
+          <div className="plan-card-title">Menú del día</div>
+          <div className="plan-card-meta">{estimatedCalories.toLocaleString("es-ES")} kcal · {estimatedProtein} g proteína · {profile.meal_count} comidas</div>
+        </div>
+        <ChevronRight size={18} className="plan-card-arrow" />
+      </button>
+
+      <button className="plan-card plan-card-next pressable" onClick={() => app.setMealSheet({ meal: shownMeal, day: todayPlan })}>
+        <div className="plan-card-icon"><Clock3 size={20} /></div>
+        <div className="plan-card-body">
+          <div className="plan-card-title">{mealTimeLabel}</div>
+          <div className="plan-card-meta">{shownMeal.name} · {shownMeal.calories} kcal</div>
+        </div>
+        <ChevronRight size={18} className="plan-card-arrow" />
+      </button>
+
+      {/* MOVIMIENTO — secundario: motiva sin ser el centro de la app */}
+      <div className="section-header">
+        <h2 className="section-title">Movimiento de hoy</h2>
+        <button className="text-button pressable" onClick={() => app.handleTabChange("training")}>Ver entreno</button>
+      </div>
       <button className={`today-focus pressable ${complete ? "is-complete" : ""}`} onClick={() => app.handleTabChange("training")}>
         <div className="today-focus-top">
           <div className={`today-focus-icon ${todayIsRestDay ? "rest" : ""}`}>
@@ -139,30 +167,6 @@ export default function TodayTab() {
           <span className="metric-label">racha pesaje</span>
         </div>
       </div>
-
-      {/* PLAN DE HOY */}
-      <div className="section-header">
-        <h2 className="section-title">Tu plan de hoy</h2>
-        <button className="text-button pressable" onClick={() => app.goToFood("week")}>Ver semana</button>
-      </div>
-
-      <button className="plan-card plan-card-food pressable" onClick={() => app.goToFood("week")}>
-        <div className="plan-card-icon"><Utensils size={20} /></div>
-        <div className="plan-card-body">
-          <div className="plan-card-title">Comida</div>
-          <div className="plan-card-meta">{estimatedCalories.toLocaleString("es-ES")} kcal · {estimatedProtein} g proteína · {profile.meal_count} comidas</div>
-        </div>
-        <ChevronRight size={18} className="plan-card-arrow" />
-      </button>
-
-      <button className="plan-card plan-card-next pressable" onClick={() => app.setMealSheet({ meal: shownMeal, day: todayPlan })}>
-        <div className="plan-card-icon"><Clock3 size={20} /></div>
-        <div className="plan-card-body">
-          <div className="plan-card-title">{mealTimeLabel}</div>
-          <div className="plan-card-meta">{shownMeal.name} · {shownMeal.calories} kcal</div>
-        </div>
-        <ChevronRight size={18} className="plan-card-arrow" />
-      </button>
 
       {/* MENSAJE DEL COACH — generado con tus datos reales, cambia cada día */}
       <div className={`coach-note ${coach.tone === "warn" ? "tone-warn" : ""}`}>

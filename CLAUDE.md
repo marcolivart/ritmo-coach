@@ -2,6 +2,10 @@
 
 App de entrenador personal (nutrición semanal medida + entrenamiento guiado). PWA móvil, diseñada como app nativa iPhone pero funciona en cualquier navegador.
 
+## Enfoque de producto (IMPORTANTE, no lo derivas del código)
+
+**La comida es el corazón de la app.** El entreno es motivación secundaria: anima a moverse, pero **esto NO es una app de levantamiento de pesas**. Ante cualquier decisión de diseño o de dónde poner el foco (orden en Hoy, tamaño de las tarjetas, qué se pule primero), la comida gana. No añadir profundidad de gimnasio (series/RPE/periodización) sin que Marc lo pida explícitamente; sí se puede seguir mejorando motivación al movimiento (rachas, variedad, cardio) mientras no compita visualmente con la comida.
+
 ## Preferencias de trabajo del usuario (Marc)
 
 - **Responde en español**, con honestidad directa. Si algo está mal o hay una idea mejor, dilo sin rodeos antes de los puntos positivos. No validar por validar.
@@ -59,8 +63,12 @@ src/
     supabase.ts         # cliente (persistSession)
     database.ts         # queries + fallbacks pre-migración (códigos de error PGRST202/42P10/42703…)
     dates.ts            # ÚNICA fuente de fechas (local-safe). PROHIBIDO toISOString().slice(0,10) para días
-    nutrition.ts        # kcal (Mifflin-St Jeor), proteína, macroSplit real, isWeightDue (usa weighing_day), racha
-    menu.ts             # menú base 7×4 + applyMealCount (3/4/5) + personalizeWeek (alergias∪bloqueados filtran, favoritos influyen)
+    nutrition.ts        # kcal (Mifflin-St Jeor), proteína (sobre peso de referencia, no siempre el actual), macroSplit real, isWeightDue, racha
+    menu.ts             # 3 semanas de menú que ROTAN (menuWeeks + menuWeekIndex, determinista por semana natural)
+                         # applyMealCount (3/4/5) + personalizeWeek (semana natural Lun-Dom, para compra/PDF)
+                         # + personalizeRollingWeek (ventana móvil hoy+6 días, para el selector de Comida)
+                         # alergias∪bloqueados filtran, favoritos influyen
+    eatingOut.ts        # sugerencias de bar/restaurante ("Voy a comer fuera" en MealSheet), emparejadas por tipo de comida y kcal/proteína objetivo
     groceries.ts        # lista de compra desde ingredientes reales
     workouts.ts         # catálogo: gym (Torso A/B, Pierna), casa, cardio (run/walk/bike). Unión StrengthWorkout|CardioWorkout
     plan.ts             # buildWeeklyPlan según exercise_types y training_days (mezcla fuerza+cardio)
@@ -100,7 +108,8 @@ History API nativa (sin react-router). URLs: `/hoy`, `/comida`, `/entreno`, `/pr
 Tras el rediseño V3 **no quedan placeholders**: coach por reglas con datos reales, semana dinámica, macros calculados, gráfico con escala/fechas reales, horarios editables, meal_count y exercise_types honrados, alergias y favoritos afectan al menú y a la compra.
 
 Limitaciones asumidas (documentadas, no bugs):
-- El menú base es 1 semana fija que se personaliza/escala; no hay generador infinito de recetas. "Regenerar" alterna base↔alternativa (cada plato tiene UNA alternativa).
+- El menú rota sobre 3 semanas fijas (`menuWeeks`) que se personalizan/escalan; no hay generador infinito de recetas. "Regenerar" alterna base↔alternativa (cada plato tiene UNA alternativa) dentro de la semana activa.
+- El selector de días de Comida es una ventana móvil (hoy + 6 días, `personalizeRollingWeek`); la compra y el PDF siguen sobre la semana natural Lun-Dom (`personalizeWeek`) porque así se compra.
 - Marcar comida "hecha" SÍ persiste (`meal_completions`) y alimenta al coach, pero no hay tracking de kcal consumidas reales.
 - Con pocos datos las stats devuelven `null` y la UI muestra "—" (mejor que inventar).
 - El clamp de escalado del menú es 0.72–1.35: objetivos calóricos extremos no se alcanzan solo escalando.

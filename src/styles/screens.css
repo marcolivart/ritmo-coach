@@ -246,6 +246,15 @@
 
 .alt-name { font-size: var(--text-base); font-weight: var(--font-heavy); }
 .alt-note { font-size: var(--text-xs); opacity: 0.7; margin-top: 5px; }
+
+/* Comer fuera */
+.eatout-trigger { width: 100%; margin-top: 14px; }
+.eatout-card { padding: 14px var(--screen-pad); }
+.eatout-card + .eatout-card { margin-top: 10px; }
+.eatout-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.eatout-name { font-size: var(--text-base); font-weight: var(--font-heavy); letter-spacing: -0.2px; }
+.eatout-macros { font-size: var(--text-sm); color: var(--green-deep); font-weight: var(--font-heavy); margin-top: 6px; }
+.eatout-tip { font-size: var(--text-sm); color: var(--muted-strong); line-height: 1.45; margin-top: 5px; }
 .sheet-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 14px; }
 .ingredient-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex: 0 0 auto; margin: 0 8px; }
 

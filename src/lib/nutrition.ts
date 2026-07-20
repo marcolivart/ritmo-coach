@@ -24,12 +24,19 @@ export function estimateDailyCalories(profile: Profile): number {
   return Math.round(Math.max(1300, Math.min(4500, maintenance + adjustment)) / 25) * 25;
 }
 
-/** Objetivo diario de proteína en gramos, según peso corporal y objetivo.
- *  Rango estándar de referencia: 1.6-2.2 g/kg en déficit o superávit,
- *  1.2-1.6 g/kg en mantenimiento. */
+/** Objetivo diario de proteína en gramos.
+ *  Se calcula sobre un peso de referencia, no siempre el actual: en pérdida de
+ *  peso usar el peso corporal actual con sobrepeso infla la cifra, así que se
+ *  toma el menor entre el actual y el objetivo (proxy de masa magra). En
+ *  ganancia se usa el objetivo (hacia donde vas). Rango 1.6-1.9 g/kg. */
 export function estimateDailyProtein(profile: Profile): number {
-  const gramsPerKg = profile.goal === "maintain" ? 1.4 : 1.9;
-  return Math.round((profile.current_weight_kg * gramsPerKg) / 5) * 5;
+  const referenceKg = profile.goal === "lose"
+    ? Math.min(profile.current_weight_kg, profile.target_weight_kg)
+    : profile.goal === "gain"
+      ? profile.target_weight_kg
+      : profile.current_weight_kg;
+  const gramsPerKg = profile.goal === "maintain" ? 1.6 : 1.9;
+  return Math.round((referenceKg * gramsPerKg) / 5) * 5;
 }
 
 export function formatWeighingDay(day: number): string {
