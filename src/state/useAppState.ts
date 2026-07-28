@@ -1,21 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Tab } from "../lib/routes";
-import { DEFAULT_SCHEDULE, type FoodPreference, type Profile, type WeightLog } from "../types";
+import { DEFAULT_SCHEDULE, type FoodPreference, type ManualMeal, type Profile, type WeightLog } from "../types";
 import type { DatabaseExcludedMeal } from "../types";
 import {
   addExcludedMeal,
   addFoodPreference as addFoodPreferenceRecord,
+  addManualMeal,
   addMealCompletion,
   deleteExerciseSetsForDay,
   getExcludedMeals,
   getExerciseSetsInRange,
   getFoodPreferences,
   getGroceries,
+  getManualMeals,
   getMealCompletions,
   getWeightLogs,
   getWellnessToday,
   removeExcludedMeal,
   removeFoodPreference,
+  removeManualMeal,
   removeMealCompletion,
   resetUserData,
   saveExerciseSet,
@@ -48,6 +51,7 @@ import {
 export type PreferenceType = "blocked" | "favorite" | "allergy";
 export type SetRow = { kg: string; reps: string; done: boolean };
 export type MealSheetPayload = { meal: Meal; day: DayPlan };
+export type ManualMealSheetPayload = { dateISO: string; dayLabel: string };
 export type FoodView = "week" | "shopping" | "preferences";
 export type TrainingView = "overview" | "guide";
 
@@ -78,6 +82,7 @@ type DemoSnapshot = {
   excludedMealKeys?: string[];
   completions?: string[];
   wellnessByDate?: Record<string, { water_ml: number; sleep_hours: number | null }>;
+  manualMeals?: ManualMeal[];
 };
 
 function readDemoSnapshot(): DemoSnapshot {
@@ -143,10 +148,12 @@ export function useAppState({ userId, profile, onProfileChange, onLogout }: AppS
   const [wellnessToday, setWellnessToday] = useState<{ water_ml: number; sleep_hours: number | null }>(
     () => demoSeed.wellnessByDate?.[todayISO()] ?? { water_ml: 0, sleep_hours: null },
   );
+  const [manualMeals, setManualMeals] = useState<ManualMeal[]>(() => demoSeed.manualMeals ?? []);
 
   // ---------- Sheets ----------
   const [weightSheetOpen, setWeightSheetOpen] = useState(false);
   const [mealSheet, setMealSheet] = useState<MealSheetPayload | null>(null);
+  const [manualMealSheet, setManualMealSheet] = useState<ManualMealSheetPayload | null>(null);
   const [profileSheetOpen, setProfileSheetOpen] = useState(false);
   const [scheduleSheetOpen, setScheduleSheetOpen] = useState(false);
   const [workoutOptionsOpen, setWorkoutOptionsOpen] = useState(false);
@@ -220,8 +227,9 @@ export function useAppState({ userId, profile, onProfileChange, onLogout }: AppS
       getExcludedMeals(userId),
       getMealCompletions(userId, weekStart, weekEnd),
       getWellnessToday(userId, todayISO()),
+      getManualMeals(userId, weekStart, addDaysISO(todayISO(), 6)),
     ])
-      .then(async ([preferences, logs, remoteGroceries, exerciseSets, excludedMeals, mealCompletions, wellness]) => {
+      .then(async ([preferences, logs, remoteGroceries, exerciseSets, excludedMeals, mealCompletions, wellness, manual]) => {
         if (cancelled) return;
         setPreferenceRecords(preferences);
         const blockedNames = preferences.filter((item) => item.restriction_type === "blocked").map((item) => item.food_name);
@@ -237,6 +245,7 @@ export function useAppState({ userId, profile, onProfileChange, onLogout }: AppS
         setExcludedMealKeys(excludedKeysSet);
         setCompletions(new Set(mealCompletions.map((item) => `${item.completed_date}-${item.meal_type}`)));
         setWellnessToday(wellness ? { water_ml: wellness.water_ml, sleep_hours: wellness.sleep_hours } : { water_ml: 0, sleep_hours: null });
+        setManualMeals(manual);
 
         const personalized = personalizeWeek(effectiveProfile, excludedKeysSet, [...blockedNames, ...allergyNames], favoriteNames);
         const groceryItems = buildGroceryListFromWeek(personalized, [...blockedNames, ...allergyNames])
@@ -281,10 +290,11 @@ export function useAppState({ userId, profile, onProfileChange, onLogout }: AppS
         excludedMealKeys: Array.from(excludedMealKeys),
         completions: Array.from(completions),
         wellnessByDate: { ...(demoSeed.wellnessByDate ?? {}), [todayISO()]: wellnessToday },
+        manualMeals,
       };
       localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(snapshot));
     } catch { /* Algunos entornos bloquean localStorage. */ }
-  }, [userId, demoProfile, weightLogs, blockedFoods, favoriteFoods, allergies, groceries, excludedMealKeys, completions, wellnessToday, demoSeed]);
+  }, [userId, demoProfile, weightLogs, blockedFoods, favoriteFoods, allergies, groceries, excludedMealKeys, completions, wellnessToday, manualMeals, demoSeed]);
 
   // ---------- Perfil ----------
   const saveProfilePatch = useCallback(async (patch: Partial<Profile>) => {
@@ -535,6 +545,72 @@ export function useAppState({ userId, profile, onProfileChange, onLogout }: AppS
       }
     }
   }, [groceries, userId, toastError]);
+
+  // ---------- Registro manual de comida ----------
+  // Alimentos fuera del catálogo (congelados, comida fuera). Sus 4 macros los
+  // introduce el usuario y suman a los totales del día correspondiente.
+  const manualMealsForDay = useCallback(
+    (dateISO: string) => manualMeals.filter((meal) => meal.entry_date === dateISO),
+    [manualMeals],
+  );
+
+  const manualTotalsForDay = useCallback((dateISO: string) => {
+    return manualMeals
+      .filter((meal) => meal.entry_date === dateISO)
+      .reduce(
+        (total, meal) => ({
+          calories: total.calories + meal.calories,
+          protein: total.protein + meal.protein,
+          carbs: total.carbs + meal.carbs,
+          fat: total.fat + meal.fat,
+        }),
+        { calories: 0, protein: 0, carbs: 0, fat: 0 },
+      );
+  }, [manualMeals]);
+
+  const addManualEntry = useCallback(async (
+    dateISO: string,
+    entry: { name: string; calories: number; protein: number; carbs: number; fat: number },
+  ) => {
+    const name = entry.name.trim();
+    if (!name) { setToast("Ponle un nombre a la comida"); return false; }
+    if (entry.calories <= 0) { setToast("Introduce al menos las kcal"); return false; }
+    try {
+      setSyncing(true);
+      const clean = {
+        name,
+        calories: Math.round(entry.calories),
+        protein: Math.max(0, Math.round(entry.protein)),
+        carbs: Math.max(0, Math.round(entry.carbs)),
+        fat: Math.max(0, Math.round(entry.fat)),
+      };
+      const record = userId
+        ? await addManualMeal(userId, dateISO, clean)
+        : { id: -Date.now(), user_id: "demo", entry_date: dateISO, ...clean };
+      setManualMeals((meals) => [...meals, record]);
+      setToast(`${name} añadido al día`);
+      return true;
+    } catch (caught) {
+      toastError(caught, "No se ha podido guardar la comida");
+      return false;
+    } finally {
+      setSyncing(false);
+    }
+  }, [userId, toastError]);
+
+  const removeManualEntry = useCallback(async (id: number) => {
+    const previous = manualMeals;
+    setManualMeals((meals) => meals.filter((meal) => meal.id !== id));
+    // id negativo = fila solo en sesión (demo o pre-migración v4): nada que borrar.
+    if (userId && id > 0) {
+      try {
+        await removeManualMeal(id);
+      } catch (caught) {
+        setManualMeals(previous);
+        toastError(caught, "No se ha podido eliminar la comida");
+      }
+    }
+  }, [manualMeals, userId, toastError]);
 
   // ---------- Entreno ----------
   const weekPlan: PlannedDay[] = useMemo(() => buildWeeklyPlan(effectiveProfile), [effectiveProfile]);
@@ -850,6 +926,11 @@ export function useAppState({ userId, profile, onProfileChange, onLogout }: AppS
     completions,
     toggleMealDone,
     weeklyFoodAdherencePercent,
+    manualMeals,
+    manualMealsForDay,
+    manualTotalsForDay,
+    addManualEntry,
+    removeManualEntry,
     groceries: visibleGroceries,
     toggleGrocery,
     exportPDF,
@@ -885,6 +966,7 @@ export function useAppState({ userId, profile, onProfileChange, onLogout }: AppS
     // sheets
     weightSheetOpen, setWeightSheetOpen,
     mealSheet, setMealSheet,
+    manualMealSheet, setManualMealSheet,
     profileSheetOpen, setProfileSheetOpen,
     scheduleSheetOpen, setScheduleSheetOpen,
     workoutOptionsOpen, setWorkoutOptionsOpen,

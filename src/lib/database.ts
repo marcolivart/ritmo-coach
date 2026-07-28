@@ -7,6 +7,7 @@ import type {
   DatabaseMealCompletion,
   FoodPreference,
   FoodPreferenceType,
+  ManualMeal,
   Profile,
   WeightLog,
 } from "../types";
@@ -206,6 +207,47 @@ export async function removeMealCompletion(userId: string, completedDate: string
   raise(error);
 }
 
+/** Comidas registradas a mano entre dos fechas (ISO). Pre-migración v4 (tabla
+ *  ausente) devuelve lista vacía: la función degrada en silencio. */
+export async function getManualMeals(userId: string, fromDateISO: string, toDateISO: string): Promise<ManualMeal[]> {
+  const { data, error } = await client()
+    .from("manual_meals")
+    .select("*")
+    .eq("user_id", userId)
+    .gte("entry_date", fromDateISO)
+    .lte("entry_date", toDateISO)
+    .order("created_at", { ascending: true });
+  if (error && MISSING_TABLE_CODES.has(error.code ?? "")) return [];
+  raise(error);
+  return (data ?? []) as ManualMeal[];
+}
+
+export async function addManualMeal(
+  userId: string,
+  entryDate: string,
+  meal: { name: string; calories: number; protein: number; carbs: number; fat: number },
+): Promise<ManualMeal> {
+  const { data, error } = await client()
+    .from("manual_meals")
+    .insert({ user_id: userId, entry_date: entryDate, ...meal })
+    .select()
+    .single();
+  if (!error) return data as ManualMeal;
+  // Pre-migración v4: la tabla aún no existe. Se devuelve una fila sintética con
+  // id negativo para que la UI la muestre esta sesión (no persiste en la nube).
+  if (MISSING_TABLE_CODES.has(error.code ?? "")) {
+    return { id: -Date.now(), user_id: userId, entry_date: entryDate, ...meal };
+  }
+  raise(error);
+  throw new Error("unreachable");
+}
+
+export async function removeManualMeal(id: number): Promise<void> {
+  const { error } = await client().from("manual_meals").delete().eq("id", id);
+  if (error && MISSING_TABLE_CODES.has(error.code ?? "")) return;
+  raise(error);
+}
+
 export async function saveExerciseSet(input: {
   userId: string;
   workoutName: string;
@@ -315,9 +357,11 @@ export async function resetUserData(userId: string): Promise<Profile> {
     const { error } = await client().from(table).delete().eq("user_id", userId);
     raise(error);
   }
-  // daily_wellness es de la migración v3; puede no existir todavía.
+  // daily_wellness (v3) y manual_meals (v4) pueden no existir todavía.
   const wellnessDelete = await client().from("daily_wellness").delete().eq("user_id", userId);
   if (wellnessDelete.error && !MISSING_TABLE_CODES.has(wellnessDelete.error.code ?? "")) raise(wellnessDelete.error);
+  const manualDelete = await client().from("manual_meals").delete().eq("user_id", userId);
+  if (manualDelete.error && !MISSING_TABLE_CODES.has(manualDelete.error.code ?? "")) raise(manualDelete.error);
 
   const { data, error } = await client()
     .from("profiles")

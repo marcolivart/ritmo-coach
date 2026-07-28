@@ -7,6 +7,7 @@ import ProgressTab from "./tabs/ProgressTab";
 import ProfileTab from "./tabs/ProfileTab";
 import WeightSheet from "./sheets/WeightSheet";
 import MealSheet from "./sheets/MealSheet";
+import ManualMealSheet from "./sheets/ManualMealSheet";
 import ProfileSheet from "./sheets/ProfileSheet";
 import ScheduleSheet from "./sheets/ScheduleSheet";
 import WorkoutOptionsSheet from "./sheets/WorkoutOptionsSheet";
@@ -41,6 +42,7 @@ function AppOverlays() {
     <>
       <WeightSheet />
       <MealSheet />
+      <ManualMealSheet />
       <ProfileSheet />
       <ScheduleSheet />
       <WorkoutOptionsSheet />

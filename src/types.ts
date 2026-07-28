@@ -62,6 +62,20 @@ export type DailyWellness = {
   updated_at?: string;
 };
 
+/** Comida registrada a mano (fuera del catálogo): congelados, comida fuera de
+ *  casa… El usuario introduce sus 4 macros. Tabla de migration-v4.sql. */
+export type ManualMeal = {
+  id: number;
+  user_id: string;
+  entry_date: string;
+  name: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  created_at?: string;
+};
+
 export type DatabaseGroceryItem = {
   id: number;
   user_id: string;

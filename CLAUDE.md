@@ -34,11 +34,13 @@ Deploy: `git add . && git commit -m "..." && git push` → Vercel despliega solo
 Producción: https://ritmo-coach.vercel.app/
 Repo: https://github.com/marcolivart/ritmo-coach
 
-## Migraciones pendientes de ejecutar
+## Migraciones (estado)
 
 `supabase/migration-v2.sql` — ✅ ya ejecutada por Marc (2026-07-20).
 
-`supabase/migration-v3.sql` — PENDIENTE. Añade la tabla `daily_wellness` (agua/sueño del widget de Hoy) y actualiza `reset_user_data` para incluirla. **La app funciona sin ella** (fallback por código de error `PGRST205`/`42P01` en `database.ts`: el widget sigue operativo, solo que agua/sueño no persisten entre sesiones hasta que se ejecute).
+`supabase/migration-v3.sql` — ✅ ya ejecutada por Marc (2026-07-28). Añade la tabla `daily_wellness` (agua/sueño del widget de Hoy) y actualiza `reset_user_data` para incluirla. El fallback por código de error `PGRST205`/`42P01` en `database.ts` se conserva por robustez.
+
+`supabase/migration-v4.sql` — ✅ ya ejecutada por Marc (2026-07-28, requiere v2 y v3). Añade la tabla `manual_meals` (registro manual de comidas fuera del catálogo: nombre + 4 macros a mano) y actualiza `reset_user_data` para incluirla. El fallback `PGRST205`/`42P01` se conserva por robustez.
 
 ## Sistema de diseño (src/styles/)
 
@@ -112,7 +114,8 @@ Tras el rediseño V3 **no quedan placeholders**: coach por reglas con datos real
 Limitaciones asumidas (documentadas, no bugs):
 - El menú rota sobre 3 semanas fijas (`menuWeeks`) que se personalizan/escalan; no hay generador infinito de recetas. "Regenerar" alterna base↔alternativa (cada plato tiene UNA alternativa) dentro de la semana activa.
 - El selector de días de Comida es una ventana móvil (hoy + 6 días, `personalizeRollingWeek`); la compra y el PDF siguen sobre la semana natural Lun-Dom (`personalizeWeek`) porque así se compra.
-- Marcar comida "hecha" SÍ persiste (`meal_completions`) y alimenta al coach y a Progreso (`weeklyFoodAdherencePercent` en `useAppState.ts`, semana natural Lun→hoy), pero no hay tracking de kcal consumidas reales.
+- Marcar comida "hecha" SÍ persiste (`meal_completions`) y alimenta al coach y a Progreso (`weeklyFoodAdherencePercent` en `useAppState.ts`, semana natural Lun→hoy), pero no hay tracking de kcal consumidas reales del menú planificado.
+- Registro manual de comida (`manual_meals`, migration-v4): entrada libre nombre + 4 macros para comida fuera del catálogo (congelados, comer fuera). Se muestra en el día del selector de Comida (`WeekView`, sección "Añadido a mano") y **suma a los totales del día** (kcal/proteína reales; carbos/grasa reales encima del estimado `macroSplit` del plan). No alimenta al coach ni a la adherencia de Progreso (solo afecta la tarjeta de totales del día).
 - Con pocos datos las stats devuelven `null` y la UI muestra "—" (mejor que inventar).
 - El clamp de escalado del menú es 0.72–1.35: objetivos calóricos extremos no se alcanzan solo escalando.
 - `excluded_meals` es por día-de-semana (aplica cada semana); `meal_completions` por fecha. Inconsistencia de modelo asumida.
