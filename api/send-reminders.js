@@ -97,9 +97,11 @@ export default async function handler(req, res) {
     .in("user_id", dueIds);
   if (subsError) return res.status(500).json({ error: subsError.message });
 
-  const targets = (subs ?? []).filter(
-    (s) => !weighedSet.has(s.user_id) && s.last_reminded_on !== date,
-  );
+  // En modo prueba (force) se ignoran los filtros de "ya pesado / ya avisado"
+  // para poder verificar la entrega. En automático sí se respetan.
+  const targets = force
+    ? (subs ?? [])
+    : (subs ?? []).filter((s) => !weighedSet.has(s.user_id) && s.last_reminded_on !== date);
 
   const payload = JSON.stringify({
     title: "Ritmo · Pesaje semanal",
