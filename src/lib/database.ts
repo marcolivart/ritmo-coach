@@ -248,6 +248,30 @@ export async function removeManualMeal(id: number): Promise<void> {
   raise(error);
 }
 
+/** Guarda (o actualiza por endpoint) la suscripción push de este dispositivo.
+ *  Pre-migración v5 (tabla ausente) lanza un error claro: el toggle lo captura. */
+export async function savePushSubscription(
+  userId: string,
+  sub: { endpoint: string; p256dh: string; auth: string },
+): Promise<void> {
+  const { error } = await client()
+    .from("push_subscriptions")
+    .upsert(
+      { user_id: userId, endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth, last_reminded_on: null },
+      { onConflict: "endpoint" },
+    );
+  if (error && MISSING_TABLE_CODES.has(error.code ?? "")) {
+    throw new Error("Ejecuta migration-v5.sql en Supabase para activar los recordatorios");
+  }
+  raise(error);
+}
+
+export async function deletePushSubscription(endpoint: string): Promise<void> {
+  const { error } = await client().from("push_subscriptions").delete().eq("endpoint", endpoint);
+  if (error && MISSING_TABLE_CODES.has(error.code ?? "")) return;
+  raise(error);
+}
+
 export async function saveExerciseSet(input: {
   userId: string;
   workoutName: string;

@@ -42,6 +42,18 @@ Repo: https://github.com/marcolivart/ritmo-coach
 
 `supabase/migration-v4.sql` — ✅ ya ejecutada por Marc (2026-07-28, requiere v2 y v3). Añade la tabla `manual_meals` (registro manual de comidas fuera del catálogo: nombre + 4 macros a mano) y actualiza `reset_user_data` para incluirla. El fallback `PGRST205`/`42P01` se conserva por robustez.
 
+`supabase/migration-v5.sql` — PENDIENTE (requiere v2–v4). Añade la tabla `push_subscriptions` (suscripciones de notificaciones push) y actualiza `reset_user_data`. Necesaria para los recordatorios de pesaje. La app funciona sin ella (el toggle avisa con un error claro si falta). **Además hay que configurar variables de entorno en Vercel** (ver «Notificaciones push»).
+
+## Notificaciones push (recordatorio de pesaje)
+
+Web Push. El cliente solo gestiona la suscripción (`src/lib/push.ts` + toggle en ProfileTab → `savePushSubscription`/`deletePushSubscription`). El envío lo hace **Vercel Cron + función serverless** `api/send-reminders.js` (Node ESM, librería `web-push`), leyendo `push_subscriptions` con la service role key.
+
+- **DST resuelto**: el cron corre a las 7:00 y 8:00 UTC (`vercel.json`), y la función solo envía si en ese momento son las 9:00 en `Europe/Madrid` → siempre llega a las 9:00 hora española en invierno y verano. Idempotente vía `last_reminded_on`.
+- El SW (`public/sw.js`) tiene los listeners `push` y `notificationclick`. Al tocar CACHE_VERSION, súbela.
+- El rewrite de `vercel.json` excluye `/api` (`/((?!api/).*)`) para no tragarse la función.
+- **iOS**: las notificaciones solo funcionan si la PWA está instalada en la pantalla de inicio (`getPushEnv` devuelve `needs-install` en Safari sin instalar).
+- **Variables de entorno en Vercel** (Project Settings → Environment Variables): `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (mailto), `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`. La clave VAPID **pública** no es secreta y está incrustada en `push.ts` y en la función. Sin estas vars la función responde 500 y no envía.
+
 ## Sistema de diseño (src/styles/)
 
 Tokens en `src/styles/tokens.css` — única fuente de verdad. No usar valores literales para color/radio/sombra/peso tipográfico en componentes: si falta un token, se añade.

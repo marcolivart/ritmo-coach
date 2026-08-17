@@ -1,10 +1,20 @@
-import { Ban, CalendarDays, Check, ChevronRight, Clock3, Cloud, Dumbbell, FileDown, LogOut, Scale, Settings2, Target, Trash2 } from "lucide-react";
+import { Ban, Bell, BellOff, CalendarDays, Check, ChevronRight, Clock3, Cloud, Dumbbell, FileDown, LogOut, Scale, Settings2, Target, Trash2 } from "lucide-react";
 import SettingRow from "../ui/SettingRow";
 import { useAppData } from "../../src/state/AppContext";
 import { formatWeighingDay } from "../../src/lib/nutrition";
+import type { PushEnv } from "../../src/lib/push";
 
 const ACTIVITY_LABELS: Record<string, string> = {
   sedentary: "sedentaria", light: "ligera", moderate: "moderada", high: "alta",
+};
+
+const PUSH_TEXT: Record<PushEnv | "loading", string> = {
+  loading: "Comprobando…",
+  unsupported: "No disponible en este navegador",
+  "needs-install": "Instala la app en tu pantalla de inicio primero",
+  denied: "Permiso bloqueado en los ajustes del navegador",
+  ready: "Aviso del pesaje semanal, a las 9:00",
+  subscribed: "Activados · pesaje semanal, 9:00",
 };
 
 export default function ProfileTab() {
@@ -73,6 +83,20 @@ export default function ProfileTab() {
           trailing={<span className="text-button">Generar</span>}
           onClick={app.exportPDF}
         />
+        {userId && (() => {
+          const env = app.pushEnv;
+          const canToggle = (env === "ready" || env === "subscribed") && !app.pushBusy;
+          const action = env === "subscribed" ? "Desactivar" : env === "ready" ? "Activar" : null;
+          return (
+            <SettingRow
+              icon={env === "subscribed" ? <Bell size={20} /> : <BellOff size={20} />}
+              name="Recordatorios"
+              value={PUSH_TEXT[env]}
+              trailing={action ? <span className="text-button">{app.pushBusy ? "…" : action}</span> : undefined}
+              onClick={canToggle ? () => void app.togglePushReminders() : undefined}
+            />
+          );
+        })()}
         {userId && (
           <SettingRow
             icon={<Cloud size={20} />}

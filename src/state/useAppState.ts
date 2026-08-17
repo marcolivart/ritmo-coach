@@ -7,6 +7,7 @@ import {
   addFoodPreference as addFoodPreferenceRecord,
   addManualMeal,
   addMealCompletion,
+  deletePushSubscription,
   deleteExerciseSetsForDay,
   getExcludedMeals,
   getExerciseSetsInRange,
@@ -23,6 +24,7 @@ import {
   resetUserData,
   saveExerciseSet,
   saveProfile,
+  savePushSubscription,
   saveWeightLog,
   saveWellnessPatch,
   seedGroceries,
@@ -36,6 +38,7 @@ import { exportWeekPDF } from "../lib/pdf";
 import { buildWeeklyPlan, todayPlannedWorkoutId, type PlannedDay } from "../lib/plan";
 import { distinctTrainingDays, latestSetsByExercise, strengthTrendPercent, type ExerciseSetRecord } from "../lib/stats";
 import { coachMessage, type CoachMessage } from "../lib/coach";
+import { getPushEnv, subscribeToPush, unsubscribeFromPush, type PushEnv } from "../lib/push";
 import {
   buildAlternativeExercise,
   isCardioWorkout,
@@ -612,6 +615,41 @@ export function useAppState({ userId, profile, onProfileChange, onLogout }: AppS
     }
   }, [manualMeals, userId, toastError]);
 
+  // ---------- Notificaciones push (recordatorio de pesaje) ----------
+  const [pushEnv, setPushEnv] = useState<PushEnv | "loading">("loading");
+  const [pushBusy, setPushBusy] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    getPushEnv()
+      .then((env) => { if (active) setPushEnv(env); })
+      .catch(() => { if (active) setPushEnv("unsupported"); });
+    return () => { active = false; };
+  }, []);
+
+  const togglePushReminders = useCallback(async () => {
+    if (!userId) { setToast("Inicia sesión para activar los recordatorios"); return; }
+    setPushBusy(true);
+    try {
+      if (pushEnv === "subscribed") {
+        const endpoint = await unsubscribeFromPush();
+        if (endpoint) await deletePushSubscription(endpoint);
+        setPushEnv("ready");
+        setToast("Recordatorios desactivados");
+      } else {
+        const sub = await subscribeToPush();
+        await savePushSubscription(userId, sub);
+        setPushEnv("subscribed");
+        setToast("Recordatorios activados. Te avisaré del pesaje");
+      }
+    } catch (caught) {
+      setPushEnv(await getPushEnv().catch(() => "unsupported"));
+      toastError(caught, "No se han podido activar los recordatorios");
+    } finally {
+      setPushBusy(false);
+    }
+  }, [userId, pushEnv, toastError]);
+
   // ---------- Entreno ----------
   const weekPlan: PlannedDay[] = useMemo(() => buildWeeklyPlan(effectiveProfile), [effectiveProfile]);
   const todayPlan = useMemo(() => todayPlannedWorkoutId(effectiveProfile), [effectiveProfile]);
@@ -905,6 +943,11 @@ export function useAppState({ userId, profile, onProfileChange, onLogout }: AppS
     waterGlasses,
     adjustWater,
     adjustSleepHours,
+
+    // notificaciones
+    pushEnv,
+    pushBusy,
+    togglePushReminders,
 
     // comida
     blockedFoods,
