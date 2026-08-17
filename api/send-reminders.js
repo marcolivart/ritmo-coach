@@ -72,7 +72,14 @@ export default async function handler(req, res) {
     .eq("weighing_day", dow);
   if (profilesError) return res.status(500).json({ error: profilesError.message });
   const dueIds = (profiles ?? []).map((p) => p.id);
-  if (dueIds.length === 0) return res.status(200).json({ sent: 0, reason: "nadie tiene pesaje hoy" });
+  if (dueIds.length === 0) {
+    let subscriptionsTotal = null;
+    if (force) {
+      const { count } = await supabase.from("push_subscriptions").select("id", { count: "exact", head: true });
+      subscriptionsTotal = count;
+    }
+    return res.status(200).json({ sent: 0, reason: "nadie tiene pesaje hoy", dow, date, subscriptionsTotal });
+  }
 
   // Quién ya se pesó esta semana natural (no hace falta recordárselo).
   const monday = mondayOf(date, dow);
