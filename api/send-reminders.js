@@ -38,12 +38,20 @@ function mondayOf(dateISO, dow) {
 export default async function handler(req, res) {
   // Solo Vercel Cron: envía Authorization: Bearer <CRON_SECRET> si está definido.
   const secret = process.env.CRON_SECRET;
-  if (secret && req.headers.authorization !== `Bearer ${secret}`) {
+  const authorized = Boolean(secret) && req.headers.authorization === `Bearer ${secret}`;
+  if (secret && !authorized) {
     return res.status(401).json({ error: "no autorizado" });
   }
 
+  // Prueba manual bajo demanda: ?force=1 salta la comprobación horaria, pero solo
+  // si vienes autenticado con el CRON_SECRET (para no abrir el envío a cualquiera).
+  const url = new URL(req.url, `https://${req.headers.host}`);
+  const force = authorized && url.searchParams.get("force") === "1";
+
   const { hour, date, dow } = madridNow();
-  if (hour !== 9) return res.status(200).json({ skipped: true, reason: "no son las 9 en Madrid", hour });
+  if (!force && hour !== 9) {
+    return res.status(200).json({ skipped: true, reason: "no son las 9 en Madrid", hour });
+  }
   if (dow === undefined) return res.status(500).json({ error: "no se pudo determinar el día" });
 
   const supabaseUrl = process.env.SUPABASE_URL;
